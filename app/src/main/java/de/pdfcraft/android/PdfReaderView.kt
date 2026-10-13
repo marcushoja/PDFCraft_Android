@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
@@ -18,6 +19,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.OverScroller
 import java.io.File
@@ -87,6 +89,16 @@ class PdfReaderView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
     private val scroller = OverScroller(context)
+    private val turnScroller = OverScroller(context, DecelerateInterpolator(2f))
+    private val turnMatrix = Matrix()
+    private val turnCorners = FloatArray(8)
+    private val cardCorners = FloatArray(8)
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var turning = false
+    private var turnFrom = 0
+    private var turnTo = 0
+    private var turnStartX = 0f
+    private var turnEndX = 0f
     private var settling = false
     private var scaledThisGesture = false
     private var gestureStartPage = 0
@@ -99,7 +111,7 @@ class PdfReaderView(context: Context) : View(context) {
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 scaledThisGesture = true
-                scroller.abortAnimation()
+                stopAnimations()
                 return pageCount > 0
             }
             override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -110,7 +122,7 @@ class PdfReaderView(context: Context) : View(context) {
     private val gestures = GestureDetector(context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
-                scroller.abortAnimation()
+                stopAnimations()
                 settling = false
                 gestureStartPage = currentPage
                 return true
@@ -127,6 +139,12 @@ class PdfReaderView(context: Context) : View(context) {
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (!scaleDetector.isInProgress && !scaledThisGesture) {
                     scrollXFloat += dx
+                    if (mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
+                        // A gesture may turn only one sheet, even during a long drag.
+                        scrollXFloat = scrollXFloat.coerceIn(
+                            starts[max(0, gestureStartPage - 1)] * zoom,
+                            starts[min(pageCount - 1, gestureStartPage + 1)] * zoom)
+                    }
                     scrollYFloat += dy
                     constrainScroll()
                     positionChanged()
@@ -214,7 +232,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun close() {
         generation.incrementAndGet()
-        scroller.abortAnimation()
+        stopAnimations()
         settling = false
         renderInFlight = false
         pendingPosition = null
@@ -247,16 +265,28 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun goToPage(page: Int) {
         if (pageCount == 0) return
-        scroller.abortAnimation()
+        stopAnimations()
         settling = false
         setPosition(page.coerceIn(0, pageCount - 1), 0f)
+    }
+
+    /** Animated sheet navigation at fit zoom; other modes retain instant navigation. */
+    fun turnToPage(page: Int) {
+        if (mode != ReadingMode.SINGLE || zoom > 1.01f || width == 0) {
+            goToPage(page)
+            return
+        }
+        if (pageCount == 0) return
+        stopAnimations()
+        gestureStartPage = currentPage
+        animateToPage(page)
     }
 
     fun setReadingMode(mode: ReadingMode) {
         if (this.mode == mode) return
         val saved = position()
         this.mode = mode
-        scroller.abortAnimation()
+        stopAnimations()
         rebuildLayout()
         setPosition(saved.first, saved.second)
     }
@@ -266,7 +296,7 @@ class PdfReaderView(context: Context) : View(context) {
         val saved = position()
         fitPage = enabled
         zoom = 1f
-        scroller.abortAnimation()
+        stopAnimations()
         rebuildLayout()
         setPosition(saved.first, saved.second)
     }
@@ -287,6 +317,7 @@ class PdfReaderView(context: Context) : View(context) {
     private fun finite(value: Float, fallback: Float) = if (value.isFinite()) value else fallback
 
     private fun changeZoom(value: Float, focusX: Float, focusY: Float) {
+        stopAnimations()
         val next = finite(value, zoom).coerceIn(1f, 5f)
         val anchorPage = pageAt(if (mode == ReadingMode.CONTINUOUS)
             scrollYFloat + focusY else scrollXFloat + focusX, zoom)
@@ -309,6 +340,7 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        stopAnimations()
         val saved = position()
         super.onSizeChanged(w, h, oldw, oldh)
         rebuildLayout()
@@ -373,8 +405,14 @@ class PdfReaderView(context: Context) : View(context) {
         return low.coerceIn(0, pageCount - 1)
     }
 
-    private fun positionPage(): Int = pageAt(if (mode == ReadingMode.CONTINUOUS)
-        scrollYFloat else scrollXFloat + width / 2f, zoom)
+    private fun positionPage(): Int {
+        // Arbitrary button navigation still displays just two sheets, not every intervening page.
+        if (turning && abs(turnTo - turnFrom) > 1) {
+            return if (turnProgress() < .5f) turnFrom else turnTo
+        }
+        return pageAt(if (mode == ReadingMode.CONTINUOUS)
+            scrollYFloat else scrollXFloat + width / 2f, zoom)
+    }
 
     private fun position(): Pair<Int, Float> {
         if (pageCount == 0) return 0 to 0f
@@ -436,7 +474,9 @@ class PdfReaderView(context: Context) : View(context) {
         val coordinate = if (mode == ReadingMode.CONTINUOUS) scrollYFloat else scrollXFloat
         val extent = if (mode == ReadingMode.CONTINUOUS) height else width
         val visibleCount = max(1, pageAt(coordinate + extent, zoom) - pageAt(coordinate, zoom) + 1)
-        val pixelBudget = min(4_000_000.0, 6_000_000.0 / visibleCount)
+        // Three fit-zoom sheets fit inside the cache, including both preloaded neighbors.
+        val pixelBudget = if (mode == ReadingMode.SINGLE && zoom <= 1.01f) 2_000_000.0
+            else min(4_000_000.0, 6_000_000.0 / visibleCount)
         val reduction = min(1.0, kotlin.math.sqrt(pixelBudget / (w.toDouble() * h)))
         w *= reduction.toFloat()
         h *= reduction.toFloat()
@@ -452,6 +492,10 @@ class PdfReaderView(context: Context) : View(context) {
                 loadingPaint.color = Color.WHITE
                 drawCenteredLabel(canvas, "PDF wird geladen …", RectF(0f, 0f, width.toFloat(), height.toFloat()))
             }
+            return
+        }
+        if (mode == ReadingMode.SINGLE && zoom <= 1.01f) {
+            drawSinglePages(canvas)
             return
         }
         val start = if (mode == ReadingMode.CONTINUOUS) scrollYFloat else scrollXFloat
@@ -497,6 +541,107 @@ class PdfReaderView(context: Context) : View(context) {
         val metrics = loadingPaint.fontMetrics
         canvas.drawText(label, bounds.centerX(), bounds.centerY() - (metrics.ascent + metrics.descent) / 2f,
             loadingPaint)
+    }
+
+    private fun turnProgress(): Float = if (turnEndX == turnStartX) 1f
+        else ((scrollXFloat - turnStartX) / (turnEndX - turnStartX)).coerceIn(0f, 1f)
+
+    private fun drawSinglePages(canvas: Canvas) {
+        val snapshots = cache.snapshot()
+        val first: Int
+        val second: Int
+        val progress: Float
+        val direction: Float
+        if (turning && abs(turnTo - turnFrom) > 1) {
+            first = turnFrom
+            second = turnTo
+            progress = turnProgress()
+            direction = if (second > first) 1f else -1f
+        } else {
+            first = pageAt(scrollXFloat, zoom)
+            second = min(pageCount - 1, first + 1)
+            progress = ((scrollXFloat - starts[first] * zoom) / max(1f, width * zoom)).coerceIn(0f, 1f)
+            direction = 1f
+        }
+        fun drawCard(page: Int, displacement: Float, depth: Float) {
+            val rect = pageRect(page)
+            // Center each sheet independently; layout scroll is only the transition's progress.
+            rect.offset((width - rect.width()) / 2f - rect.left, 0f)
+            val key = renderKey(page)
+            val bitmap = cache.get(key) ?: snapshots.entries.filter { it.key.page == page }
+                .minByOrNull { abs(it.key.width - key.width) }?.value
+            val inset = rect.height() * .025f * depth
+            val scale = 1f - .045f * depth
+            val left = rect.centerX() - rect.width() * scale / 2f + displacement * width
+            val right = left + rect.width() * scale
+            val top = rect.top + rect.height() * (1f - scale) / 2f
+            val bottom = top + rect.height() * scale
+            cardCorners[0] = rect.left; cardCorners[1] = rect.top
+            cardCorners[2] = rect.right; cardCorners[3] = rect.top
+            cardCorners[4] = rect.right; cardCorners[5] = rect.bottom
+            cardCorners[6] = rect.left; cardCorners[7] = rect.bottom
+            val tilt = if (displacement < 0f) inset else -inset
+            turnCorners[0] = left; turnCorners[1] = top + inset + tilt
+            turnCorners[2] = right; turnCorners[3] = top + inset - tilt
+            turnCorners[4] = right; turnCorners[5] = bottom - inset + tilt
+            turnCorners[6] = left; turnCorners[7] = bottom - inset - tilt
+            turnMatrix.reset()
+            turnMatrix.setPolyToPoly(cardCorners, 0, turnCorners, 0, 4)
+            canvas.save()
+            canvas.concat(turnMatrix)
+            // Soft cast shadow follows the moving sheet rather than the viewport.
+            val shadowWidth = gap * (1f + depth)
+            for (step in 8 downTo 1) {
+                val spread = shadowWidth * step / 8f
+                shadowPaint.color = Color.BLACK
+                shadowPaint.alpha = (3 + 4 * depth).toInt()
+                canvas.drawRoundRect(rect.left - spread, rect.top - spread / 2f,
+                    rect.right + spread, rect.bottom + spread, spread, spread, shadowPaint)
+            }
+            placeholderPaint.color = if (darkPages) Color.BLACK else Color.WHITE
+            canvas.drawRect(rect, placeholderPaint)
+            if (bitmap != null) canvas.drawBitmap(bitmap, null, rect, pagePaint)
+            else {
+                loadingPaint.color = if (darkPages) Color.LTGRAY else Color.DKGRAY
+                canvas.save()
+                canvas.clipRect(rect)
+                val visible = RectF(rect)
+                if (visible.intersect(0f, 0f, width.toFloat(), height.toFloat())) {
+                    drawCenteredLabel(canvas, if (key in failedRenders) "Seite nicht verfügbar"
+                        else "Seite wird geladen …", visible)
+                }
+                canvas.restore()
+            }
+            // Gentle fold-like edge shading gives motion depth without distorting the text heavily.
+            if (depth > .001f) {
+                val edge = if (displacement < 0f) rect.right else rect.left
+                val shadeWidth = min(rect.width() * .12f, gap * 5f) * depth
+                for (step in 0 until 12) {
+                    shadowPaint.alpha = (32f * depth * (1f - step / 12f)).toInt()
+                    val a = shadeWidth * step / 12f
+                    val b = shadeWidth * (step + 1) / 12f
+                    canvas.drawRect(if (displacement < 0f) edge - b else edge + a,
+                        rect.top, if (displacement < 0f) edge - a else edge + b, rect.bottom, shadowPaint)
+                }
+            }
+            canvas.restore()
+        }
+        if (second != first && progress > 0f) drawCard(second, direction * (1f - progress), 1f - progress)
+        if (progress < 1f || second == first) drawCard(first, -direction * progress, progress)
+
+        // One serial render at a time, visible sheets first, then exactly one neighbor each side.
+        if (!renderInFlight && !scaleDetector.isInProgress) {
+            val center = currentPage
+            val candidates = linkedSetOf(center, first, second)
+            // During a distant jump, avoid evicting the two animated sheets for intermediate neighbors.
+            if (!turning || abs(turnTo - turnFrom) <= 1) {
+                candidates.add(center - 1)
+                candidates.add(center + 1)
+            }
+            val request = candidates.filter { it in 0 until pageCount }.map { renderKey(it) }
+                .firstOrNull { cache.get(it) == null && it !in failedRenders }
+            if (request != null) requestRender(request)
+        }
     }
 
     private fun requestRender(key: RenderKey) {
@@ -552,7 +697,7 @@ class PdfReaderView(context: Context) : View(context) {
         gestures.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             parent?.requestDisallowInterceptTouchEvent(false)
-            if (!settling && !scaledThisGesture && event.actionMasked == MotionEvent.ACTION_UP) snapPage()
+            if (!settling && !turning && !scaledThisGesture) snapPage()
             invalidate() // Schedule the sharp render after a pinch ends.
         }
         return true
@@ -581,11 +726,26 @@ class PdfReaderView(context: Context) : View(context) {
             else -> return super.performAccessibilityAction(action, arguments)
         }
         if (target !in 0 until pageCount) return false
-        goToPage(target)
+        turnToPage(target)
         return true
     }
 
     override fun computeScroll() {
+        if (turning) {
+            if (turnScroller.computeScrollOffset()) {
+                scrollXFloat = turnScroller.currX.toFloat()
+                constrainScroll()
+                positionChanged()
+                postInvalidateOnAnimation()
+            } else {
+                scrollXFloat = turnEndX
+                turning = false
+                constrainScroll()
+                positionChanged()
+                invalidate()
+            }
+            return
+        }
         if (scroller.computeScrollOffset()) {
             scrollXFloat = scroller.currX.toFloat()
             scrollYFloat = scroller.currY.toFloat()
@@ -605,14 +765,35 @@ class PdfReaderView(context: Context) : View(context) {
 
     private fun animateToPage(page: Int) {
         if (pageCount == 0) return
-        val target = (starts[page.coerceIn(0, pageCount - 1)] * zoom).toInt().coerceIn(0, maxScrollX().toInt())
+        val destination = page.coerceIn(0, pageCount - 1)
+        val target = (starts[destination] * zoom).coerceIn(0f, maxScrollX())
         settling = false
         scroller.abortAnimation()
+        turnScroller.abortAnimation()
+        turning = false
         if (abs(target - scrollXFloat) > 1f) {
-            settling = true
-            scroller.startScroll(scrollXFloat.toInt(), scrollYFloat.toInt(),
-                target - scrollXFloat.toInt(), 0, 180)
+            turnFrom = currentPage
+            turnTo = destination
+            turnStartX = scrollXFloat
+            turnEndX = target
+            turning = true
+            turnScroller.startScroll(scrollXFloat.toInt(), 0,
+                target.toInt() - scrollXFloat.toInt(), 0, 280)
             postInvalidateOnAnimation()
+        } else {
+            scrollXFloat = target
+            positionChanged()
+            invalidate()
         }
+    }
+
+    private fun stopAnimations() {
+        if (turning && abs(turnTo - turnFrom) > 1) {
+            scrollXFloat = starts[positionPage()] * zoom
+        }
+        scroller.abortAnimation()
+        turnScroller.abortAnimation()
+        turning = false
+        settling = false
     }
 }

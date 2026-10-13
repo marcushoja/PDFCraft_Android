@@ -25,6 +25,7 @@ android {
 
 dependencies {
     implementation("androidx.activity:activity:1.10.1")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

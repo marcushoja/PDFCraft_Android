@@ -13,7 +13,9 @@ PACKAGE = "de.pdfcraft.android"
 
 
 def adb(*args, binary=False):
-    return subprocess.check_output([ADB, *args], text=not binary)
+    serial = os.environ.get("ANDROID_SERIAL")
+    selector = ["-s", serial] if serial else []
+    return subprocess.check_output([ADB, *selector, *args], text=not binary)
 
 
 def hierarchy():
@@ -64,13 +66,15 @@ def main():
     check("Fortlaufend · vertikal scrollen")
     check("Ganze Seite einpassen", False)
     tap(text="Übernehmen")
+    tap(description="Leseoptionen")
+    tap(text="Zoom zurücksetzen")
     tap(description="Seitenzahl, zu Seite springen")
     adb("shell", "input", "text", "5")
     tap(text="Öffnen")
     if not any(n.get("text") == "★" for n in hierarchy().iter("node")):
         tap(description="Lesezeichen setzen oder entfernen")
     time.sleep(0.6)  # Allow debounced progress persistence.
-    doc = next(d for d in records() if d["name"] == "reader-integration.pdf")
+    doc = max((d for d in records() if d["name"] == "reader-integration.pdf"), key=lambda d: d["lastOpened"])
     assert doc["page"] == 4, doc
     assert 4 in doc["bookmarks"], doc
     screenshot(output, "reader.png")
@@ -98,6 +102,8 @@ def main():
     tap(text="Schließen")
     # A single tap toggles distraction-free mode, another restores controls.
     tap(description="PDF-Dokument")
+    if any(n.get("text", "").casefold() == "got it" for n in hierarchy().iter("node")):
+        tap(text="Got it")
     assert not any(n.get("content-desc") == "Leseoptionen" for n in hierarchy().iter("node"))
     tap(description="PDF-Dokument")
     tap(description="Leseoptionen")

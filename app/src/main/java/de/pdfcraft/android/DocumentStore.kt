@@ -22,6 +22,8 @@ data class PdfDocument(
     val offset: Float,
     val zoom: Float,
     val bookmarks: List<Int>,
+    val reflowOffset: Float = 0f,
+    val lastView: String = "pdf",
 )
 
 /** Imports must run on a worker thread. No persistent URI permissions are needed. */
@@ -142,6 +144,7 @@ class DocumentStore(context: Context) {
                 offset = progress.offset,
                 zoom = progress.zoom,
                 pageCount = progress.pageCount,
+                lastView = "pdf",
                 bookmarks = document.bookmarks.filter {
                     progress.pageCount == 0 || it < progress.pageCount
                 },
@@ -151,6 +154,19 @@ class DocumentStore(context: Context) {
 
     fun markOpened(id: String) {
         update(id) { it.copy(lastOpened = System.currentTimeMillis()) }
+    }
+
+    fun rename(id: String, name: String) {
+        val cleaned = name.filterNot { it.isISOControl() }.trim().take(256)
+        require(cleaned.isNotEmpty()) { "Bitte einen Dokumentnamen eingeben." }
+        update(id) { it.copy(name = cleaned) }
+    }
+
+    fun updateTextProgress(id: String, page: Int, offset: Float, pageCount: Int) {
+        val normalized = ReadingProgress.sanitize(page, offset, 1f, pageCount)
+        update(id) { doc -> doc.copy(page = normalized.page, pageCount = normalized.pageCount,
+            offset = if (doc.page == normalized.page) doc.offset else 0f,
+            reflowOffset = normalized.offset, lastView = "reflow") }
     }
 
     fun toggleBookmark(id: String, page: Int) {
@@ -232,6 +248,8 @@ class DocumentStore(context: Context) {
                         json.optLong("addedAt", 0L).coerceAtLeast(0L),
                         json.optLong("lastOpened", 0L).coerceAtLeast(0L),
                         progress.pageCount, progress.page, progress.offset, progress.zoom, pages,
+                        json.optDouble("reflowOffset", 0.0).toFloat().let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0f },
+                        if (json.optString("lastView") == "reflow") "reflow" else "pdf",
                     ),
                 )
             } catch (error: Exception) {
@@ -255,6 +273,8 @@ class DocumentStore(context: Context) {
                 put("offset", document.offset.toDouble())
                 put("zoom", document.zoom.toDouble())
                 put("bookmarks", JSONArray(document.bookmarks))
+                put("reflowOffset", document.reflowOffset.toDouble())
+                put("lastView", document.lastView)
             })
         }
         if (!preferences.edit().putString(DOCUMENTS, array.toString()).commit()) {
