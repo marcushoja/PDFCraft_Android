@@ -15,13 +15,15 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-data class ReaderAction(val id: String, val label: String, val icon: String)
+data class ReaderAction(val id: String, val label: String, val icon: String, val destructive: Boolean = false)
 
 /** The caller supplies only actions that are available for the current document. */
 class ReaderActionSheet(
     context: Context,
     private val dark: Boolean,
     private val actions: List<ReaderAction>,
+    private val title: String? = null,
+    private val subtitle: String? = null,
     private val onAction: (String) -> Unit
 ) : Dialog(context) {
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + .5f).toInt()
@@ -36,29 +38,35 @@ class ReaderActionSheet(
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(20), dp(10), dp(20))
         }
+        title?.let { value ->
+            grid.addView(TextView(context).apply { text=UiText.t(context,value);textSize=20f;setTextColor(foreground);setTypeface(typeface,android.graphics.Typeface.BOLD);setPadding(dp(14),0,dp(14),dp(4)) })
+            subtitle?.let { message -> grid.addView(TextView(context).apply { text=UiText.t(context,message);textSize=12f;setTextColor(ZenColors.of(dark).muted);setPadding(dp(14),0,dp(14),dp(14)) }) }
+        }
         actions.chunked(4).forEach { group ->
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             group.forEach { action ->
+                val color = if(action.destructive) if(dark) 0xffe8b4a6.toInt() else 0xff95584a.toInt() else foreground
                 val cell = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
-                    minimumHeight = dp(96)
+                    minimumHeight = dp(if(title==null) 96 else 106)
                     setPadding(dp(3), dp(12), dp(3), dp(10))
                     contentDescription = UiText.t(context,action.label)
+                    tooltipText = contentDescription
                     isFocusable = true
                     background = RippleDrawable(ColorStateList.valueOf(if (dark) 0x33FFFFFF else 0x22000000),
                         null, GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(16).toFloat() })
                     setOnClickListener { dismiss(); onAction(action.id) }
                 }
-                cell.addView(ReaderIconView(context, action.icon, foreground).apply {
+                cell.addView(ReaderIconView(context, action.icon, color).apply {
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }, LinearLayout.LayoutParams(dp(27), dp(27)))
                 cell.addView(TextView(context).apply {
                     text = UiText.t(context,action.label)
                     textSize = 14f
-                    setTextColor(foreground)
+                    setTextColor(color)
                     gravity = Gravity.CENTER
-                    maxLines = 2
+                    maxLines = if(title==null) 2 else 3
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(9) })
                 row.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))

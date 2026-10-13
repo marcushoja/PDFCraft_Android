@@ -242,6 +242,7 @@ class MainActivity : ComponentActivity() {
         val frame = FrameLayout(this)
         frame.addView(view, FrameLayout.LayoutParams(-1, -1))
         val textView = ReflowView(this)
+        textView.onMarkSelection = { markupDialog(it) }
         textView.id = R.id.reflow_canvas
         textView.textView.id = R.id.reflow_text
         reflowView = textView
@@ -669,7 +670,10 @@ class MainActivity : ComponentActivity() {
         if (unlocked != null && unlocked?.owner != true) { error("Diese entsperrte PDF kann gelesen werden. Bearbeitung ist hier nur nach Entsperren mit dem Eigentümerpasswort verfügbar."); return }
         val source = viewingFile(doc)
         val base = doc.name.removeSuffix(".pdf")
-        LocalizedDialogBuilder(this).setTitle("PDF-Werkzeuge · sichere Kopien").setItems(arrayOf("Seiten drehen", "Seiten extrahieren / neu ordnen", "Seiten löschen", "PDFs zusammenführen", "PDF aufteilen", "Notiz hinzufügen", "Formular ausfüllen", "Mit Passwort schützen", "Text markieren", "Handschriftlich unterschreiben", "Titel und Autor ändern")) { _, index ->
+        val labels=listOf("Seiten drehen", "Seiten extrahieren / neu ordnen", "Seiten löschen", "PDFs zusammenführen", "PDF aufteilen", "Notiz hinzufügen", "Formular ausfüllen", "Mit Passwort schützen", "Text markieren", "Handschriftlich unterschreiben", "Titel und Autor ändern")
+        val icons=listOf("rotate","extract","delete","merge","split","notes","form","lock","highlight","signature","info")
+        ReaderActionSheet(this,dark,labels.mapIndexed { index,label -> ReaderAction(index.toString(),label,icons[index],index==2) },title="PDF-Werkzeuge · sichere Kopien",subtitle=getString(R.string.ui_tools_copy_hint)) { action ->
+            val index=action.toInt()
             when (index) {
                 0 -> pageSelection("Welche Seiten drehen?") { pages ->
                     LocalizedDialogBuilder(this).setTitle("Drehung").setItems(arrayOf("90° nach rechts", "180°", "90° nach links")) { _, which -> runTool("$base-gedreht.pdf") { tools.rotate(source, pages, arrayOf(90,180,270)[which]) } }.show()
@@ -681,11 +685,23 @@ class MainActivity : ComponentActivity() {
                 5 -> textInput("Notiz auf Seite ${(reader?.currentPage ?: 0) + 1}", "Notiztext") { value -> val page = reader?.currentPage ?: 0; runTool("$base-notiz.pdf") { tools.addNote(source, page, value) } }
                 6 -> formsDialog(doc)
                 7 -> textInput("Passwortschutz · Lesen/Drucken erlaubt, Textextraktion und Bearbeitung gesperrt", "Passwort", true) { password -> runTool("$base-geschuetzt.pdf") { tools.protect(source, password) } }
-                8 -> textInput("Text auf aktueller Seite markieren", "Wort oder Satz") { query -> val page = reader?.currentPage ?: 0; runTool("$base-markiert.pdf") { markup.highlightText(source, page, query) } }
+                8 -> markupDialog()
                 9 -> signatureDialog(source, base)
                 10 -> textInput("Dokumenttitel ändern", "Neuer Titel") { title -> textInput("Autor ändern", "Autor") { author -> runTool("$base-metadaten.pdf") { tools.setMetadata(source, title, author) } } }
             }
-        }.setNegativeButton("Schließen", null).show()
+        }.show()
+    }
+
+    private fun markupDialog(selectedText:String="") {
+        val doc=currentDocument() ?: return
+        if(unlocked!=null && unlocked?.owner!=true) { error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.");return }
+        val source=viewingFile(doc)
+        val page=reader?.currentPage ?: 0
+        val savedStyle=runCatching { TextMarkupStyle.valueOf(prefs.getString("markup_style","HIGHLIGHT")!!) }.getOrDefault(TextMarkupStyle.HIGHLIGHT)
+        TextMarkupDialog(this,dark,page,selectedText,prefs.getInt("markup_color",MarkupColors.values[0]),savedStyle) { query,color,style ->
+            prefs.edit().putInt("markup_color",color).putString("markup_style",style.name).apply()
+            runTool("${doc.name.removeSuffix(".pdf")}-markiert.pdf") { markup.markText(source,page,query,color,style) }
+        }.show()
     }
 
     private fun textInput(title: String, hint: String, password: Boolean = false, rawHint: Boolean = false, action: (String) -> Unit) {

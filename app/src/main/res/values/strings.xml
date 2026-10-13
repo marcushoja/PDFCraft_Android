@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_tools_copy_hint">Changes are saved in a new PDF copy.</string>
+    <string name="ui_markup_matches">Page %1$s · All matching occurrences on this page. Text must fit on a single PDF line; scans require OCR.</string>
+    <string name="ui_markup_highlight">Highlight</string>
+    <string name="ui_markup_underline">Underline</string>
+    <string name="ui_markup_strikeout">Strike through</string>
+    <string name="ui_markup_color">Color: %1$s</string>
+    <string name="ui_markup_sample">Your text</string>
+    <string name="ui_markup_create">Create copy</string>
+    <string name="ui_color_yellow">Yellow</string>
+    <string name="ui_color_orange">Orange</string>
+    <string name="ui_color_green">Green</string>
+    <string name="ui_color_blue">Blue</string>
+    <string name="ui_color_pink">Pink</string>
+    <string name="ui_color_violet">Violet</string>
     <string name="ui_settings_short">Settings</string>
     <string name="ui_cancel">Cancel</string>
     <string name="ui_open">Open</string>

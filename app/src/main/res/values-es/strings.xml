@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_tools_copy_hint">Los cambios se guardan en una nueva copia PDF.</string>
+    <string name="ui_markup_matches">Página %1$s · Todas las coincidencias de esta página. El texto debe caber en una sola línea PDF; los escaneos requieren OCR.</string>
+    <string name="ui_markup_highlight">Resaltar</string>
+    <string name="ui_markup_underline">Subrayar</string>
+    <string name="ui_markup_strikeout">Tachar</string>
+    <string name="ui_markup_color">Color: %1$s</string>
+    <string name="ui_markup_sample">Tu texto</string>
+    <string name="ui_markup_create">Crear copia</string>
+    <string name="ui_color_yellow">Amarillo</string>
+    <string name="ui_color_orange">Naranja</string>
+    <string name="ui_color_green">Verde</string>
+    <string name="ui_color_blue">Azul</string>
+    <string name="ui_color_pink">Rosa</string>
+    <string name="ui_color_violet">Violeta</string>
     <string name="ui_settings_short">Ajustes</string>
     <string name="ui_cancel">Cancelar</string>
     <string name="ui_open">Abrir</string>

@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_tools_copy_hint">Änderungen werden in einer neuen PDF-Kopie gespeichert.</string>
+    <string name="ui_markup_matches">Seite %1$s · Alle passenden Textstellen auf dieser Seite. Text muss in einer PDF-Zeile liegen; Scans benötigen OCR.</string>
+    <string name="ui_markup_highlight">Hervorheben</string>
+    <string name="ui_markup_underline">Unterstreichen</string>
+    <string name="ui_markup_strikeout">Durchstreichen</string>
+    <string name="ui_markup_color">Farbe: %1$s</string>
+    <string name="ui_markup_sample">Dein Text</string>
+    <string name="ui_markup_create">Kopie erstellen</string>
+    <string name="ui_color_yellow">Gelb</string>
+    <string name="ui_color_orange">Orange</string>
+    <string name="ui_color_green">Grün</string>
+    <string name="ui_color_blue">Blau</string>
+    <string name="ui_color_pink">Rosa</string>
+    <string name="ui_color_violet">Violett</string>
     <string name="ui_settings_short">Einstellungen</string>
     <string name="ui_cancel">Abbrechen</string>
     <string name="ui_open">Öffnen</string>

@@ -23,7 +23,8 @@ class PdfPrintAdapter(private val context: Context, private val file: File, priv
         executor.execute {
             try {
                 PDDocument.load(file).use { require(it.currentAccessPermission.canPrint()) { "Der Autor erlaubt das Drucken dieser PDF nicht." } }
-                file.inputStream().use { input -> FileOutputStream(destination.fileDescriptor).use { output ->
+                PdfAnnotationRendering.prepare(file,context.cacheDir,forPrinting=true).use { prepared ->
+                prepared.file.inputStream().use { input -> FileOutputStream(destination.fileDescriptor).use { output ->
                     val bytes = ByteArray(65536)
                     while (!cancellationSignal.isCanceled) {
                         val size = input.read(bytes)
@@ -31,6 +32,7 @@ class PdfPrintAdapter(private val context: Context, private val file: File, priv
                         output.write(bytes, 0, size)
                     }
                 } }
+                }
                 if (cancellationSignal.isCanceled) callback.onWriteCancelled() else callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
             } catch (error: Exception) { callback.onWriteFailed(UiText.t(context,error.message ?: "Drucken fehlgeschlagen")) }
         }

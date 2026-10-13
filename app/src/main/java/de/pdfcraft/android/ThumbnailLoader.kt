@@ -19,7 +19,9 @@ import java.util.concurrent.RejectedExecutionException
 import kotlin.math.roundToInt
 
 class ThumbnailLoader(context: Context) {
+    init { com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context.applicationContext) }
     private val directory = File(context.applicationContext.cacheDir, "thumbs")
+    private val cacheDirectory=context.applicationContext.cacheDir
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private val lock = Any()
@@ -77,14 +79,15 @@ class ThumbnailLoader(context: Context) {
     }
 
     private fun cacheKey(file: File, page: Int, width: Int): String {
-        val source = "${file.name.length}:${file.name}:${file.lastModified()}:$page:$width"
+        val source = "annotations-v2:${file.name.length}:${file.name}:${file.lastModified()}:$page:$width"
         return MessageDigest.getInstance("SHA-256")
             .digest(source.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
     private fun render(file: File, index: Int, width: Int): Bitmap? {
-        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+        PdfAnnotationRendering.prepare(file,cacheDirectory).use { prepared ->
+        ParcelFileDescriptor.open(prepared.file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
             PdfRenderer(descriptor).use { renderer ->
                 if (index !in 0 until renderer.pageCount || closed) return null
                 renderer.openPage(index).use { page ->
@@ -104,6 +107,7 @@ class ThumbnailLoader(context: Context) {
                     }
                 }
             }
+        }
         }
     }
 

@@ -26,7 +26,7 @@ object MaterialSymbols {
     )
 
     fun drawable(context: Context, key: String, color: Int): Drawable? {
-        val path = (paths[key] ?: IconifyMoreSymbols.paths[key])?.let { PathParser.createPathFromPathData(it) } ?: return null
+        val path = (paths[key] ?: IconifyMoreSymbols.paths[key] ?: PdfToolSymbols.paths[key])?.let { PathParser.createPathFromPathData(it) } ?: return null
         val size = (24 * context.resources.displayMetrics.density).toInt()
         return object : Drawable() {
             private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }

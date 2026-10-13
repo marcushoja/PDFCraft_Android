@@ -28,6 +28,8 @@ import java.text.Normalizer
 /** Coordinates in the pad: left/top = 0, right/bottom = 1. */
 data class InkPoint(val x: Float, val y: Float)
 
+enum class TextMarkupStyle { HIGHLIGHT, UNDERLINE, STRIKEOUT }
+
 /** A plain, white handwriting canvas. Call clear() from the host's labelled clear button. */
 class SignaturePadView(context: Context) : View(context) {
     private val ink = mutableListOf<MutableList<InkPoint>>()
@@ -147,8 +149,19 @@ class PdfMarkup(context: Context) {
     private val directory = File(context.applicationContext.cacheDir, "tools")
     init { PDFBoxResourceLoader.init(context.applicationContext) }
 
-    /** Highlights up to 200 case-insensitive, non-overlapping matches, within individual lines. */
-    fun highlightText(source: File, page: Int, query: String): File = edit(source, page) { document, target ->
+    /** Compatibility wrapper; the supplied alpha is ignored, as opacity belongs to the annotation. */
+    fun highlightText(source: File, page: Int, query: String, color: Int = Color.YELLOW): File =
+        markText(source, page, query, color, TextMarkupStyle.HIGHLIGHT)
+
+    /**
+     * Marks up to 200 case-insensitive, non-overlapping matches within individual text lines.
+     * Queries spanning lines and rotated text are deliberately unsupported. RGB is persisted;
+     * input alpha is ignored. Highlights use 40% opacity, underline/strikeout are fully opaque.
+     */
+    fun markText(
+        source: File, page: Int, query: String, color: Int = Color.YELLOW,
+        style: TextMarkupStyle = TextMarkupStyle.HIGHLIGHT
+    ): File = edit(source, page) { document, target ->
         if (!document.currentAccessPermission.canModifyAnnotations()) {
             throw IOException("Das Hervorheben ist durch die PDF-Berechtigungen nicht erlaubt.")
         }
@@ -181,12 +194,19 @@ class PdfMarkup(context: Context) {
                     val bottom = maxOf(box.lowerLeftY, glyphs.minOf { box.upperRightY - it.yDirAdj - it.heightDir * 0.15f })
                     val top = minOf(box.upperRightY, glyphs.maxOf { box.upperRightY - it.yDirAdj + it.heightDir * 1.15f })
                     if (right > left && top > bottom) {
-                        target.annotations.add(PDAnnotationTextMarkup(PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT).apply {
+                        val subtype = when (style) {
+                            TextMarkupStyle.HIGHLIGHT -> PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
+                            TextMarkupStyle.UNDERLINE -> PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
+                            TextMarkupStyle.STRIKEOUT -> PDAnnotationTextMarkup.SUB_TYPE_STRIKEOUT
+                        }
+                        target.annotations.add(PDAnnotationTextMarkup(subtype).apply {
                             rectangle = PDRectangle(left, bottom, right - left, top - bottom)
-                            // PDFBox highlight appearance uses Adobe's top-left, top-right, bottom-left, bottom-right order.
+                            // PDFBox text-markup appearances use Adobe's top-left, top-right, bottom-left, bottom-right order.
                             quadPoints = floatArrayOf(left, top, right, top, left, bottom, right, bottom)
-                            color = PDColor(floatArrayOf(1f, 1f, 0f), PDDeviceRGB.INSTANCE)
-                            constantOpacity = 0.4f
+                            this.color = PDColor(floatArrayOf(
+                                Color.red(color) / 255f, Color.green(color) / 255f, Color.blue(color) / 255f
+                            ), PDDeviceRGB.INSTANCE)
+                            constantOpacity = if (style == TextMarkupStyle.HIGHLIGHT) 0.4f else 1f
                             contents = query
                             titlePopup = "PDFCraft"
                             isPrinted = true

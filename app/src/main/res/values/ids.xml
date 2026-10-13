@@ -8,4 +8,7 @@
     <item name="page_indicator" type="id" />
     <item name="language_spinner" type="id" />
     <item name="reader_actions" type="id" />
+    <item name="markup_text" type="id" />
+    <item name="markup_preview" type="id" />
+    <item name="mark_selection" type="id" />
 </resources>

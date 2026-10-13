@@ -78,11 +78,14 @@ class PdfReaderView(context: Context) : View(context) {
         // Only this worker's serial executor accesses the document and its pages.
         var renderer: PdfRenderer? = null
         var descriptor: ParcelFileDescriptor? = null
+        var prepared: PreparedPdf? = null
         fun closeDocument() {
             try { renderer?.close() } catch (_: Exception) { }
             renderer = null
             try { descriptor?.close() } catch (_: Exception) { }
             descriptor = null
+            prepared?.close()
+            prepared = null
         }
     }
     private var worker: DocumentWorker? = null
@@ -205,7 +208,11 @@ class PdfReaderView(context: Context) : View(context) {
         document.executor.execute {
             try {
                 if (generation.get() != token) return@execute
-                val fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context.applicationContext)
+                val prepared = PdfAnnotationRendering.prepare(file,context.cacheDir)
+                document.prepared = prepared
+                if (generation.get() != token) { document.closeDocument();return@execute }
+                val fd = ParcelFileDescriptor.open(prepared.file, ParcelFileDescriptor.MODE_READ_ONLY)
                 document.descriptor = fd
                 val pdf = PdfRenderer(fd)
                 document.renderer = pdf

@@ -5,7 +5,7 @@
 - Debug-APK und Instrumentation-APK gebaut.
 - 22 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung und Page-Curl-Geometrie.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 31 Integrationstests jeweils auf Android 12 / API 31 und Android API 37 (Fold-Emulator):
+- 40 Integrationstests jeweils auf Android 12 / API 31 und Android API 37 (Fold-Emulator):
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -22,6 +22,8 @@
 `tools/smoke_test.py` und `tools/reflow_smoke_test.py` prüfen über echte Android-UI-Interaktionen: PDF öffnen, scrollen, Position/Lesezeichen nach Prozess-Neustart, Vorschaubilder, Nachtmodus, Vollbild samt Verlassen, fingergeführtes Umblättern, Reflow, Suche, neue Notiz-Kopie und Android-Druckvorschau.
 
 `tools/zen_ui_smoke_test.py` prüft alle vier Sprachwechsel samt Activity-Neustart, helle Zen-Farben und den sichtbaren Autor **Marcus Hoja**. `tools/search_cancel_smoke_test.py` prüft den tatsächlichen Abbruch einer laufenden 300-Seiten-Suche und eine direkt anschließende Suche mit Großbuchstaben gegen kleingeschriebenen PDF-Text.
+
+`tools/markup_smoke_test.py` prüft das PDF-Werkzeug-Icon-Raster, die Farbauswahl, Unterstreichen und das Öffnen einer echten neuen annotierten PDF. Zusätzliche Markup-Tests prüfen RGB, die drei Annotationstypen, unveränderte Originale und die native Anzeige über eine temporäre kompatible Darstellungskopie.
 
 Auch die tatsächlich aus GitHub Releases heruntergeladene APK wurde separat installiert, ihre veröffentlichte SHA-256-Prüfsumme verifiziert und beide UI-Abläufe auf API 37 ausgeführt. CI und lokale APKs haben unterschiedliche Entwicklersignaturen; die lokalen Instrumentation-Tests können deshalb nicht direkt an die CI-APK angehängt werden.
 

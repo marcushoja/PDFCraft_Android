@@ -14,6 +14,7 @@ class ReflowView(context: Context) : ScrollView(context) {
     val textView = TextView(context)
     var onOffsetChanged: ((Float) -> Unit)? = null
     var onTap: (() -> Unit)? = null
+    var onMarkSelection: ((String) -> Unit)? = null
     private var pendingOffset: Float? = null
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -28,6 +29,26 @@ class ReflowView(context: Context) : ScrollView(context) {
         val padding = (24 * resources.displayMetrics.density).roundToInt()
         textView.setPadding(padding, padding, padding, padding * 2)
         textView.setTextIsSelectable(true)
+        textView.customSelectionActionModeCallback=object:android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode:android.view.ActionMode,menu:android.view.Menu):Boolean {
+                menu.add(0,R.id.mark_selection,100,context.getString(R.string.ui_highlight_text)).apply {
+                    setIcon(MaterialSymbols.drawable(context,"highlight",ZenColors.of(false).accent))
+                    setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
+                }
+                return true
+            }
+            override fun onPrepareActionMode(mode:android.view.ActionMode,menu:android.view.Menu)=false
+            override fun onActionItemClicked(mode:android.view.ActionMode,item:android.view.MenuItem):Boolean {
+                if(item.itemId!=R.id.mark_selection) return false
+                val start=textView.selectionStart;val end=textView.selectionEnd
+                if(start>=0 && end>start) {
+                    val selected=textView.text.subSequence(start,end).toString()
+                    mode.finish();onMarkSelection?.invoke(selected)
+                }
+                return true
+            }
+            override fun onDestroyActionMode(mode:android.view.ActionMode){}
+        }
         textView.setLineSpacing(0f, 1.35f)
         // This compile-time constant is the same value supported by TextView since API 23.
         textView.breakStrategy = android.graphics.text.LineBreaker.BREAK_STRATEGY_HIGH_QUALITY
