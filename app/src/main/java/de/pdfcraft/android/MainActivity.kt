@@ -8,8 +8,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.content.FileProvider
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
-import android.text.Editable
-import android.text.TextWatcher
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.res.Configuration
@@ -33,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var thumbnails: ThumbnailLoader
     private lateinit var textService: PdfTextService
     private lateinit var tools: PdfTools
+    private lateinit var markup: PdfMarkup
     private val io = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("reader_settings", MODE_PRIVATE) }
@@ -41,9 +40,12 @@ class MainActivity : ComponentActivity() {
     private var reflowView: ReflowView? = null
     private var reflow = false
     private var reflowOffset = 0f
+    private var reflowLoading = false
+    private var activeQuery = ""
     private var textPage = -1
     private var fullscreenExit: View? = null
     private var pendingExport: File? = null
+    private var unlocked: UnlockedPdf? = null
     private var exportName = "PDFCraft.pdf"
     private var documentId: String? = null
     private var chromeVisible = true
@@ -81,10 +83,12 @@ class MainActivity : ComponentActivity() {
             }
         })
         store = DocumentStore(this)
+        File(cacheDir, "tools").listFiles()?.filter { it.name.startsWith("unlocked-") }?.forEach { it.delete() }
         thumbnails = ThumbnailLoader(this)
         PDFBoxResourceLoader.init(applicationContext)
         textService = PdfTextService(this)
         tools = PdfTools(this)
+        markup = PdfMarkup(this)
         dark = prefs.getBoolean("dark", false)
         showLibrary()
         val restoredId = savedInstanceState?.getString("document")
@@ -139,15 +143,17 @@ class MainActivity : ComponentActivity() {
         }
         window.statusBarColor = paper
         window.navigationBarColor = paper
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = if (!dark) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else 0
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
         setContentView(root)
         root.requestApplyInsets()
     }
 
     private fun showLibrary() {
         persistPosition()
-        reader?.close(); reader = null; reflowView = null; reflow = false; documentId = null
+        reader?.close(); reader = null; reflowView = null; reflow = false; unlocked?.file?.delete(); unlocked = null; documentId = null
         handler.removeCallbacks(savePosition)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         newRoot()
@@ -190,8 +196,9 @@ class MainActivity : ComponentActivity() {
 
     private fun openDocument(id: String) {
         val doc = store.get(id) ?: return
-        persistPosition(); reader?.close(); handler.removeCallbacks(savePosition)
+        persistPosition(); reader?.close(); unlocked?.file?.delete(); handler.removeCallbacks(savePosition)
         documentId = id; store.markOpened(id); chromeVisible = true
+        unlocked = null
         lastChromePage = -1
         positionPage = doc.page; positionOffset = doc.offset; positionZoom = doc.zoom
         newRoot()
@@ -201,7 +208,11 @@ class MainActivity : ComponentActivity() {
         bookmarkButton = button("☆") { reader?.let { store.toggleBookmark(id, it.currentPage); lastChromePage = -1; updateReaderChrome() } }.apply { contentDescription = "Lesezeichen setzen oder entfernen" }
         top.addView(bookmarkButton)
         top.addView(button("↗") { toggleChrome() }.apply { contentDescription = "Vollbild" })
-        top.addView(button("···") { readerMenu() }.apply { contentDescription = "Leseoptionen" })
+        top.addView(button("☰") { readerMenu() }.apply { contentDescription = "Leseoptionen" })
+        for (index in 0 until top.childCount) {
+            val item = top.getChildAt(index)
+            if (item.isClickable) { (item as TextView).textSize = 22f; item.background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22505491), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT), android.graphics.drawable.ColorDrawable(Color.WHITE)) }
+        }
         topBar = top; root.addView(top)
         val view = PdfReaderView(this)
         reader = view
@@ -210,11 +221,11 @@ class MainActivity : ComponentActivity() {
         val textView = ReflowView(this)
         reflowView = textView
         textView.visibility = View.GONE
-        textView.onOffsetChanged = { offset -> if (reflow) { reflowOffset = offset; handler.removeCallbacks(savePosition); handler.postDelayed(savePosition, 350) } }
+        textView.onOffsetChanged = { offset -> if (reflow && !reflowLoading) { reflowOffset = offset; handler.removeCallbacks(savePosition); handler.postDelayed(savePosition, 350) } }
         frame.addView(textView, FrameLayout.LayoutParams(-1, -1))
         fullscreenExit = button("↙") { toggleChrome() }.apply { contentDescription = "Vollbild verlassen"; visibility = View.GONE }
         frame.addView(fullscreenExit, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END or Gravity.BOTTOM).apply { setMargins(dp(16), dp(16), dp(16), dp(16)) })
-        reflow = false; textPage = -1; reflowOffset = doc.reflowOffset
+        reflow = false; reflowLoading = false; activeQuery = ""; textPage = -1; reflowOffset = doc.reflowOffset
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         val bottom = column().apply { setPadding(dp(12), dp(4), dp(12), dp(8)); setBackgroundColor(paper) }
         pageSeek = SeekBar(this).apply {
@@ -231,11 +242,12 @@ class MainActivity : ComponentActivity() {
         }
         bottom.addView(pageSeek, LinearLayout.LayoutParams(-1, dp(40)))
         val nav = row()
-        nav.addView(button("‹") { view.turnToPage(view.currentPage - 1) }.apply { contentDescription = "Vorherige Seite" })
+        nav.addView(button("‹") { if (reflow) view.goToPage(view.currentPage - 1) else view.turnToPage(view.currentPage - 1) }.apply { contentDescription = "Vorherige Seite" })
         pageLabel = button("…") { jumpDialog() }.apply { contentDescription = "Seitenzahl, zu Seite springen" }
         nav.addView(pageLabel, LinearLayout.LayoutParams(0, dp(48), 1f))
         nav.addView(button("Seiten") { pagesDialog(false) })
-        nav.addView(button("›") { view.turnToPage(view.currentPage + 1) }.apply { contentDescription = "Nächste Seite" })
+        nav.addView(button("›") { if (reflow) view.goToPage(view.currentPage + 1) else view.turnToPage(view.currentPage + 1) }.apply { contentDescription = "Nächste Seite" })
+        for (index in 0 until nav.childCount) nav.getChildAt(index).background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22505491), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT), android.graphics.drawable.ColorDrawable(Color.WHITE))
         bottom.addView(nav); bottomBar = bottom; root.addView(bottom)
         view.onDocumentLoaded = { count ->
             pageSeek?.max = (count - 1).coerceAtLeast(0)
@@ -249,7 +261,7 @@ class MainActivity : ComponentActivity() {
             updateReaderChrome(); handler.removeCallbacks(savePosition); handler.postDelayed(savePosition, 350)
         }
         view.onTap = { toggleChrome() }
-        view.onError = { message -> error(message); showLibrary() }
+        view.onError = { message -> if (documentId == doc.id) handleOpenError(doc, message) }
         view.open(store.file(doc), doc.page, doc.offset, doc.zoom)
         applyReaderSettings()
     }
@@ -262,6 +274,7 @@ class MainActivity : ComponentActivity() {
         val id = documentId ?: return
         val view = reader ?: return
         if (view.pageCount <= 0) return
+        if (reflow && reflowLoading) return
         if (reflow) store.updateTextProgress(id, view.currentPage, reflowOffset, view.pageCount)
         else store.updateProgress(id, positionPage, positionOffset, positionZoom, view.pageCount)
     }
@@ -309,11 +322,11 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this).setTitle("PDFCraft").setItems(arrayOf(
             if (reflow) "PDF-Ansicht" else "Textmodus / Reflow", "Im Dokument suchen", "Inhaltsverzeichnis",
             "Ansicht & Lesekomfort", "Vollbild", "Meine Lesezeichen", "Seitenübersicht", "PDF-Werkzeuge",
-            "Teilen", "Drucken", "Dokumentinformationen", "Zoom zurücksetzen", "Bibliothek")) { _, index ->
+            "Teilen", "Drucken", "Dokumentinformationen", "Zoom zurücksetzen", "Bibliothek", "Notizen anzeigen")) { _, index ->
             when (index) {
                 0 -> setReflow(!reflow); 1 -> searchDialog(); 2 -> outlineDialog(); 3 -> settings(); 4 -> toggleChrome()
                 5 -> pagesDialog(true); 6 -> pagesDialog(false); 7 -> toolsDialog(); 8 -> currentDocument()?.let { share(store.file(it)) }
-                9 -> printDocument(); 10 -> propertiesDialog(); 11 -> reader?.resetZoom(); 12 -> showLibrary()
+                9 -> printDocument(); 10 -> propertiesDialog(); 11 -> reader?.resetZoom(); 12 -> showLibrary(); 13 -> notesDialog()
             }
         }.show()
     }
@@ -338,7 +351,7 @@ class MainActivity : ComponentActivity() {
                 }
                 (cell.getChildAt(1) as TextView).text = "${pages[position] + 1}" + if (doc.bookmarks.contains(pages[position])) " ★" else ""
                 cell.setBackgroundColor(if (pages[position] == view.currentPage) if (dark) 0xff304d3d.toInt() else 0xffe0ede3.toInt() else card)
-                thumbnails.load(store.file(doc), pages[position], dp(120), cell.getChildAt(0) as ImageView)
+                thumbnails.load(viewingFile(doc), pages[position], dp(120), cell.getChildAt(0) as ImageView)
                 return cell
             }
         }
@@ -404,8 +417,46 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun currentDocument() = store.get(documentId ?: "")
+    private fun viewingFile(doc: PdfDocument) = if (documentId == doc.id) unlocked?.file ?: store.file(doc) else store.file(doc)
+
+    private fun handleOpenError(doc: PdfDocument, message: String) {
+        if (unlocked != null) { error(message); showLibrary(); return }
+        val progress = busy("PDF wird geprüft")
+        io.execute {
+            val passwordRequired = runCatching { tools.needsPassword(store.file(doc)) }.getOrDefault(false)
+            handler.post {
+                progress.dismiss()
+                if (isDestroyed || documentId != doc.id) return@post
+                if (passwordRequired) passwordDialog(doc) else { error(message); showLibrary() }
+            }
+        }
+    }
+
+    private fun passwordDialog(doc: PdfDocument) {
+        val input = EditText(this).apply { inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD; hint = "PDF-Passwort"; setPadding(dp(24),dp(12),dp(24),dp(12)) }
+        val dialog = AlertDialog.Builder(this).setTitle("Passwortgeschützte PDF").setMessage("Das Passwort bleibt nur für diesen Vorgang im Arbeitsspeicher. Die Originalkopie bleibt verschlüsselt.").setView(input)
+            .setNegativeButton("Abbrechen") { _, _ -> showLibrary() }.setPositiveButton("Entsperren", null).setCancelable(false).create()
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val password = input.text.toString()
+            val button = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            button.isEnabled = false
+            io.execute {
+                val result = runCatching { tools.unlockForViewing(store.file(doc), password) }
+                handler.post {
+                    button.isEnabled = true
+                    if (isDestroyed || documentId != doc.id) { result.getOrNull()?.file?.delete(); return@post }
+                    result.fold({ value ->
+                        unlocked = value; dialog.dismiss(); input.text.clear()
+                        reader?.open(value.file, doc.page, doc.offset, doc.zoom)
+                    }, { input.error = it.message ?: "Passwort nicht akzeptiert" })
+                }
+            }
+        } }
+        dialog.show()
+    }
 
     private fun setReflow(enabled: Boolean, offset: Float = 0f) {
+        if (enabled && unlocked?.canExtract == false) { error("Der Autor erlaubt für diese PDF keine Textextraktion und keinen Reflow."); return }
         persistPosition()
         reflow = enabled
         reader?.visibility = if (enabled) View.INVISIBLE else View.VISIBLE
@@ -418,17 +469,30 @@ class MainActivity : ComponentActivity() {
         val doc = currentDocument() ?: return
         val page = reader?.currentPage ?: return
         textPage = page; reflowOffset = offset
+        reflowLoading = true
         reflowView?.showText("Text wird geladen …", page, reader?.pageCount ?: 0)
-        textService.extract(store.file(doc), page, { extracted ->
+        textService.extract(viewingFile(doc), page, { extracted ->
             if (documentId == doc.id && reflow && textPage == page) {
                 reflowView?.showText(extracted, page, reader?.pageCount ?: 0)
                 reflowView?.restoreOffset(offset)
+                reflowLoading = false
+                if (activeQuery.isNotEmpty()) {
+                    val selectable = reflowView?.textView
+                    val content = selectable?.text?.toString().orEmpty()
+                    val highlighted = android.text.SpannableString(content)
+                    Regex(Regex.escape(activeQuery), RegexOption.IGNORE_CASE).findAll(content).take(200).forEach { match ->
+                        highlighted.setSpan(android.text.style.BackgroundColorSpan(0xffe7c94c.toInt()), match.range.first, match.range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        highlighted.setSpan(android.text.style.ForegroundColorSpan(Color.BLACK), match.range.first, match.range.last + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                    selectable?.text = highlighted
+                }
             }
-        }, { message -> if (documentId == doc.id && reflow) reflowView?.showText(message, page, reader?.pageCount ?: 0) })
+        }, { message -> if (documentId == doc.id && reflow) { reflowLoading = false; reflowView?.showText(message, page, reader?.pageCount ?: 0) } })
     }
 
     private fun searchDialog() {
         val doc = currentDocument() ?: return
+        if (unlocked?.canExtract == false) { error("Der Autor erlaubt keine Textextraktion für die Suche."); return }
         val input = EditText(this).apply { hint = "Suchbegriff"; setSingleLine(); setPadding(dp(24), dp(12), dp(24), dp(12)) }
         val dialog = AlertDialog.Builder(this).setTitle("Im Dokument suchen").setView(input).setNegativeButton("Abbrechen", null).setPositiveButton("Suchen", null).create()
         dialog.setOnShowListener {
@@ -437,11 +501,11 @@ class MainActivity : ComponentActivity() {
                 if (query.length < 2) { input.error = "Mindestens zwei Zeichen"; return@setOnClickListener }
                 dialog.dismiss()
                 val progress = busy("Dokument wird durchsucht")
-                textService.search(store.file(doc), query, { hits ->
+                textService.search(viewingFile(doc), query, { hits ->
                     progress.dismiss()
                     if (documentId != doc.id || isDestroyed) return@search
                     if (hits.isEmpty()) error("Keine Treffer. Gescannte PDFs benötigen zunächst OCR.")
-                    else AlertDialog.Builder(this).setTitle("${hits.size} Treffer").setItems(hits.map { "Seite ${it.page + 1}\n${it.snippet}" }.toTypedArray()) { _, index -> reader?.goToPage(hits[index].page); if (!reflow) setReflow(true) }.setNegativeButton("Schließen", null).show()
+                    else AlertDialog.Builder(this).setTitle("${hits.size} Treffer").setItems(hits.map { "Seite ${it.page + 1}\n${it.snippet}" }.toTypedArray()) { _, index -> activeQuery = query; reader?.goToPage(hits[index].page); if (!reflow) setReflow(true) else loadReflow(0f) }.setNegativeButton("Schließen", null).show()
                 }, { message -> progress.dismiss(); error(message) })
             }
         }
@@ -451,7 +515,7 @@ class MainActivity : ComponentActivity() {
     private fun outlineDialog() {
         val doc = currentDocument() ?: return
         val progress = busy("Inhaltsverzeichnis wird geladen")
-        textService.outline(store.file(doc), { entries ->
+        textService.outline(viewingFile(doc), { entries ->
             progress.dismiss()
             if (documentId != doc.id || isDestroyed) return@outline
             if (entries.isEmpty()) error("Diese PDF enthält kein eingebettetes Inhaltsverzeichnis.")
@@ -473,7 +537,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showExport(file: File, name: String) {
-        AlertDialog.Builder(this).setTitle("Neue PDF ist fertig").setMessage("$name\nDas Original bleibt unverändert.")
+        val warning = if (name.endsWith("-geschuetzt.pdf")) "Die Kopie ist passwortgeschützt; Textextraktion und Bearbeitung sind gesperrt." else "Die bearbeitete Kopie wird ohne ursprüngliche Verschlüsselung gespeichert. Vorhandene digitale Signaturen können ungültig werden. Seitenentnahme ist keine sichere Schwärzung."
+        AlertDialog.Builder(this).setTitle("Neue PDF ist fertig").setMessage("$name\nDas Original bleibt unverändert.\n\n$warning")
             .setPositiveButton("Speichern") { _, _ -> pendingExport = file; exportName = name; exportPicker.launch(name) }
             .setNeutralButton("Öffnen") { _, _ ->
                 val progress = busy("Kopie wird übernommen")
@@ -497,9 +562,10 @@ class MainActivity : ComponentActivity() {
 
     private fun toolsDialog() {
         val doc = currentDocument() ?: return
-        val source = store.file(doc)
+        if (unlocked != null && unlocked?.owner != true) { error("Diese entsperrte PDF kann gelesen werden. Bearbeitung ist hier nur nach Entsperren mit dem Eigentümerpasswort verfügbar."); return }
+        val source = viewingFile(doc)
         val base = doc.name.removeSuffix(".pdf")
-        AlertDialog.Builder(this).setTitle("PDF-Werkzeuge · sichere Kopien").setItems(arrayOf("Seiten drehen", "Seiten extrahieren / neu ordnen", "Seiten löschen", "PDFs zusammenführen", "PDF aufteilen", "Notiz hinzufügen", "Formular ausfüllen", "Mit Passwort schützen")) { _, index ->
+        AlertDialog.Builder(this).setTitle("PDF-Werkzeuge · sichere Kopien").setItems(arrayOf("Seiten drehen", "Seiten extrahieren / neu ordnen", "Seiten löschen", "PDFs zusammenführen", "PDF aufteilen", "Notiz hinzufügen", "Formular ausfüllen", "Mit Passwort schützen", "Text markieren", "Handschriftlich unterschreiben", "Titel und Autor ändern")) { _, index ->
             when (index) {
                 0 -> pageSelection("Welche Seiten drehen?") { pages ->
                     AlertDialog.Builder(this).setTitle("Drehung").setItems(arrayOf("90° nach rechts", "180°", "90° nach links")) { _, which -> runTool("$base-gedreht.pdf") { tools.rotate(source, pages, arrayOf(90,180,270)[which]) } }.show()
@@ -510,7 +576,10 @@ class MainActivity : ComponentActivity() {
                 4 -> splitDialog(doc)
                 5 -> textInput("Notiz auf Seite ${(reader?.currentPage ?: 0) + 1}", "Notiztext") { value -> val page = reader?.currentPage ?: 0; runTool("$base-notiz.pdf") { tools.addNote(source, page, value) } }
                 6 -> formsDialog(doc)
-                7 -> textInput("Neue PDF mit Passwort schützen", "Passwort", true) { password -> runTool("$base-geschuetzt.pdf") { tools.protect(source, password) } }
+                7 -> textInput("Passwortschutz · Lesen/Drucken erlaubt, Textextraktion und Bearbeitung gesperrt", "Passwort", true) { password -> runTool("$base-geschuetzt.pdf") { tools.protect(source, password) } }
+                8 -> textInput("Text auf aktueller Seite markieren", "Wort oder Satz") { query -> val page = reader?.currentPage ?: 0; runTool("$base-markiert.pdf") { markup.highlightText(source, page, query) } }
+                9 -> signatureDialog(source, base)
+                10 -> textInput("Dokumenttitel ändern", "Neuer Titel") { title -> textInput("Autor ändern", "Autor") { author -> runTool("$base-metadaten.pdf") { tools.setMetadata(source, title, author) } } }
             }
         }.setNegativeButton("Schließen", null).show()
     }
@@ -518,7 +587,7 @@ class MainActivity : ComponentActivity() {
     private fun textInput(title: String, hint: String, password: Boolean = false, action: (String) -> Unit) {
         val input = EditText(this).apply { this.hint = hint; setPadding(dp(24), dp(12), dp(24), dp(12)); if (password) inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
         val dialog = AlertDialog.Builder(this).setTitle(title).setView(input).setNegativeButton("Abbrechen", null).setPositiveButton("Weiter", null).create()
-        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { val value = input.text.toString().trim(); if (value.isEmpty()) input.error = "Bitte einen Wert eingeben" else { dialog.dismiss(); action(value) } } }
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { val raw = input.text.toString(); val value = if (password) raw else raw.trim(); if (value.isEmpty()) input.error = "Bitte einen Wert eingeben" else { dialog.dismiss(); action(value) } } }
         dialog.show()
     }
 
@@ -546,7 +615,7 @@ class MainActivity : ComponentActivity() {
             io.execute {
                 val result = runCatching {
                     (0 until count step size).forEachIndexed { index, start ->
-                        val file = tools.extract(store.file(doc), (start until minOf(count, start + size)).toList())
+                        val file = tools.extract(viewingFile(doc), (start until minOf(count, start + size)).toList())
                         val imported = store.importDocument(Uri.fromFile(file))
                         store.rename(imported.id, "${doc.name.removeSuffix(".pdf")}-Teil-${index + 1}.pdf")
                     }
@@ -559,7 +628,7 @@ class MainActivity : ComponentActivity() {
     private fun formsDialog(doc: PdfDocument) {
         val progress = busy("Formularfelder werden geladen")
         io.execute {
-            val result = runCatching { tools.forms(store.file(doc)) }
+            val result = runCatching { tools.forms(viewingFile(doc)) }
             handler.post {
                 progress.dismiss()
                 if (isDestroyed) return@post
@@ -572,7 +641,7 @@ class MainActivity : ComponentActivity() {
                         val input = EditText(this).apply { setText(field.value); setTextColor(ink) }
                         inputs[field.name] = input; body.addView(input)
                     }
-                    AlertDialog.Builder(this).setTitle("Formular in neuer Kopie ausfüllen").setView(ScrollView(this).apply { addView(body) }).setNegativeButton("Abbrechen", null).setPositiveButton("Kopie erstellen") { _, _ -> runTool("${doc.name.removeSuffix(".pdf")}-ausgefuellt.pdf") { tools.fillForms(store.file(doc), inputs.mapValues { it.value.text.toString() }) } }.show()
+                    AlertDialog.Builder(this).setTitle("Formular in neuer Kopie ausfüllen").setView(ScrollView(this).apply { addView(body) }).setNegativeButton("Abbrechen", null).setPositiveButton("Kopie erstellen") { _, _ -> runTool("${doc.name.removeSuffix(".pdf")}-ausgefuellt.pdf") { tools.fillForms(viewingFile(doc), inputs.mapValues { it.value.text.toString() }) } }.show()
                 }, { error(it.message ?: "Formular konnte nicht geladen werden") })
             }
         }
@@ -582,8 +651,8 @@ class MainActivity : ComponentActivity() {
         val doc = currentDocument() ?: return
         val progress = busy("Dokumentinformationen")
         io.execute {
-            val result = runCatching { tools.properties(store.file(doc)) }
-            handler.post { progress.dismiss(); if (!isDestroyed) result.fold({ p -> AlertDialog.Builder(this).setTitle(doc.name).setMessage("Titel: ${p.title.ifEmpty { "—" }}\nAutor: ${p.author.ifEmpty { "—" }}\nSeiten: ${p.pages}\nPDF-Version: ${p.version}\nVerschlüsselt: ${if (p.encrypted) "Ja" else "Nein"}\nDateigröße: ${store.file(doc).length() / 1024} KiB\n\nPrivate Kopie auf diesem Gerät.").setPositiveButton("OK", null).show() }, { error(it.message ?: "Informationen nicht verfügbar") }) }
+            val result = runCatching { tools.properties(viewingFile(doc)) }
+            handler.post { progress.dismiss(); if (!isDestroyed) result.fold({ p -> AlertDialog.Builder(this).setTitle(doc.name).setMessage("Titel: ${p.title.ifEmpty { "—" }}\nAutor: ${p.author.ifEmpty { "—" }}\nSeiten: ${p.pages}\nPDF-Version: ${p.version}\nVerschlüsselt: ${if (p.encrypted || unlocked != null) "Ja" else "Nein"}\nDateigröße: ${store.file(doc).length() / 1024} KiB\n\nPrivate Kopie auf diesem Gerät.").setPositiveButton("OK", null).show() }, { error(it.message ?: "Informationen nicht verfügbar") }) }
         }
     }
 
@@ -594,8 +663,43 @@ class MainActivity : ComponentActivity() {
 
     private fun printDocument() {
         val doc = currentDocument() ?: return
+        if (unlocked?.canPrint == false) { error("Der Autor erlaubt das Drucken dieser PDF nicht."); return }
         val manager = getSystemService(PRINT_SERVICE) as android.print.PrintManager
-        manager.print(doc.name, PdfPrintAdapter(this, store.file(doc), doc.name, reader?.pageCount ?: doc.pageCount), null)
+        manager.print(doc.name, PdfPrintAdapter(this, viewingFile(doc), doc.name, reader?.pageCount ?: doc.pageCount), null)
+    }
+
+    private fun notesDialog() {
+        val doc = currentDocument() ?: return
+        val file = viewingFile(doc)
+        val progress = busy("Notizen werden geladen")
+        io.execute {
+            val result = runCatching { tools.notes(file) }
+            handler.post {
+                progress.dismiss()
+                if (isDestroyed || documentId != doc.id) return@post
+                result.fold({ notes ->
+                    if (notes.isEmpty()) error("Diese PDF enthält keine lesbaren Notizen.")
+                    else AlertDialog.Builder(this).setTitle("Notizen").setItems(notes.map { "Seite ${it.page + 1} · ${it.text}" }.toTypedArray()) { _, index ->
+                        reader?.goToPage(notes[index].page)
+                        AlertDialog.Builder(this).setTitle("Notiz · Seite ${notes[index].page + 1}").setMessage(notes[index].text).setPositiveButton("OK", null).show()
+                    }.setNegativeButton("Schließen", null).show()
+                }, { error(it.message ?: "Notizen nicht verfügbar") })
+            }
+        }
+    }
+
+    private fun signatureDialog(source: File, base: String) {
+        val pad = SignaturePadView(this)
+        val body = column().apply {
+            setPadding(dp(16),dp(12),dp(16),dp(12))
+            addView(text("Mit dem Finger unterschreiben. Die sichtbare Unterschrift wird unten rechts auf der aktuellen Seite eingefügt. Keine digitale/kryptografische Signatur.", 13f, muted))
+            addView(pad, LinearLayout.LayoutParams(-1,dp(220)))
+            addView(button("Neu zeichnen") { pad.clear() })
+        }
+        AlertDialog.Builder(this).setTitle("Handschriftliche Unterschrift").setView(body).setNegativeButton("Abbrechen", null).setPositiveButton("Kopie erstellen") { _, _ ->
+            val strokes = pad.strokes(); val page = reader?.currentPage ?: 0
+            runTool("$base-unterschrieben.pdf") { markup.addSignature(source, page, strokes) }
+        }.show()
     }
 
     private fun error(message: String) {
@@ -604,5 +708,5 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() { persistPosition(); super.onPause() }
     override fun onSaveInstanceState(outState: Bundle) { persistPosition(); outState.putString("document", documentId); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { persistPosition(); handler.removeCallbacksAndMessages(null); reader?.close(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
+    override fun onDestroy() { persistPosition(); handler.removeCallbacksAndMessages(null); reader?.close(); unlocked?.file?.delete(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
 }

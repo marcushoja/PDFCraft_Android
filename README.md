@@ -8,18 +8,27 @@ Die jeweils aktuelle installierbare APK liegt unter [GitHub Releases](https://gi
 
 Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht einen neuen Release inklusive SHA-256-Prüfsumme. Es handelt sich zunächst um **entwicklersignierte Vorschau-Builds**, nicht um eine Play-Store-Veröffentlichung. Der CI-Signaturschlüssel wird wiederverwendet; falls dessen GitHub-Cache gelöscht wird, kann eine Neuinstallation erforderlich sein. Lokal gebaute APKs haben einen anderen Schlüssel als CI-APKs und lassen sich deshalb nicht direkt darüber installieren.
 
-## Erste Version
+## Funktionen
 
 - Lokale Bibliothek mit Vorschaubildern, Fortschritt und „Weiterlesen“.
 - PDFs über die Android-Dateiauswahl, „Öffnen mit“ und „Teilen“ importieren.
 - Lesestelle pro Dokument speichern: Seite, relative vertikale Position und Zoom. Identische Dateien werden anhand ihres SHA-256-Hashes erkannt; erneuter Import behält den Fortschritt.
 - Fortlaufend vertikal lesen oder horizontal durch Einzelseiten wischen.
+- Animiertes Umblättern mit sanfter Perspektive, Schatten und vorgerenderten Nachbarseiten.
 - Pinch-Zoom, Doppeltipp-Zoom, Seitenbreite oder ganze Seite einpassen.
 - Seitenübersicht, direkter Seitensprung, eigene Lesezeichen.
-- Ablenkungsfreies Lesen per Antippen, dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.
+- Echtes Vollbild inklusive Systemleisten, mit einer Schaltfläche zum Verlassen; dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.
+- **Textmodus / Reflow:** echter eingebetteter PDF-Text als auswählbarer, umbrochener Text; einstellbare Schriftgröße und Serifenschrift, separate gespeicherte Text-Leseposition. Seitenweise Navigation. Scans ohne Text erhalten einen Hinweis statt eines vorgetäuschten Reflows.
+- Volltextsuche mit Trefferliste und Markierungen im Textmodus, eingebettetes Inhaltsverzeichnis, Teilen und Android-Drucken.
+- Suchbare Cover-Bibliothek mit „Zuletzt“, „Bibliothek“ und „Lesezeichen“, Umbenennen und Entfernen lokaler Kopien. Die Bedienung und Farbgebung orientieren sich an [MJ PDF](https://play.google.com/store/apps/details?id=com.gitlab.mudlej.MjPdfReader); kein MJ-PDF-Code übernommen.
+- PDF-Werkzeuge: Seiten drehen, extrahieren/neu ordnen, löschen, zusammenführen und aufteilen; Notizen hinzufügen/lesen, Text markieren, Standardformulare ausfüllen, Metadaten ändern und Passwortschutz.
+- Handschriftliche sichtbare Unterschrift per Finger; **keine kryptografische Signatur**.
+- Passwortgeschützte PDFs zum Lesen entsperren; Passwort wird nicht gespeichert, verschlüsselte Originalkopie bleibt erhalten. Temporäre entschlüsselte Ansicht wird beim Schließen gelöscht und nach einem Prozessabbruch beim nächsten Start bereinigt. Autor-Berechtigungen werden für Textzugriff/Druck berücksichtigt; Bearbeitung entsperrter Dateien derzeit nur mit Eigentümerpasswort.
 - Lokale private Kopien: Originaldateien werden niemals verändert. Keine Internetberechtigung, Konten, Werbung oder Telemetrie. Cloud-Dateianbieter können beim Import selbst Netzwerkzugriff benötigen.
 
-**Noch nicht enthalten:** Textsuche/-auswahl, PDF-Inhaltsverzeichnis, Passwort-Eingabe, Annotationen, Bearbeitung, OCR, echte Text-Reflow-Ansicht und Cloud-Synchronisation. Passwortgeschützte oder beschädigte PDFs erhalten eine Fehlermeldung. Die Nachtansicht invertiert auch Bilder.
+**Keine vollständige PdfCraft-Parität:** weiterhin fehlen OCR, zuverlässige Bearbeitung bestehender PDF-Texte, Office-Konvertierung, sichere Schwärzung, kryptografische Signaturen, Ebenen-/Anhangsverwaltung, PDF/A-/Preflight-Werkzeuge, XFA, vollständige Kommentar-Threads und weitere Acrobat-Pro-Funktionen. Textauswahl findet im Reflow statt, nicht auf dem gerenderten PDF-Bild. Die Nachtansicht invertiert auch Bilder.
+
+**Sichere Originale, begrenzte Bearbeitung:** Werkzeuge erstellen neue Kopien, keine inkrementellen Updates. Bestehende digitale Signaturen können dadurch ungültig werden. Bearbeitete Kopien werden ohne ursprüngliche Verschlüsselung gespeichert, außer beim ausdrücklichen Passwortschutz. Extraktion/Seitenlöschung repariert nicht alle Verweise des Inhaltsverzeichnisses oder Formulare zu entfernten Seiten und ist keine sichere Schwärzung. Highlighting unterstützt zunächst ungedrehte Textseiten. Neu geschützte Kopien erlauben Lesen/Drucken, sperren aber Textextraktion/Bearbeitung. Zusammenführen ist auf importierte Bibliotheksdateien begrenzt; Aufteilen erstellt lokale Bibliothekskopien.
 
 ## Bauen
 
@@ -37,26 +46,30 @@ Unter Windows entsprechend `gradlew.bat`. APK: `app/build/outputs/apk/debug/app-
 
 ## Aufbau
 
-Kotlin, native Android-Views und AndroidX Activity. Androids `PdfRenderer` rendert im Hintergrund. Keine WebView, kein Server, keine externe PDF-Laufzeit. Ein begrenzter Bitmap-Cache und bedarfsgerechtes Nachrendern halten den Speicherverbrauch kontrolliert; maximale Vergrößerung 5×, Importlimit 500 MiB. Bei extremem Zoom ist die Renderauflösung aus Speichergründen begrenzt; noch kein gekacheltes Rendering.
+Kotlin, native Android-Views und AndroidX Activity. Androids `PdfRenderer` rendert im Hintergrund; PDFBox Android verarbeitet Text und PDF-Kopien lokal. Keine WebView und kein Server. Ein begrenzter Bitmap-Cache und bedarfsgerechtes Nachrendern halten den Speicherverbrauch kontrolliert; maximale Vergrößerung 5×, Importlimit 500 MiB. Bei extremem Zoom ist die Renderauflösung aus Speichergründen begrenzt; noch kein gekacheltes Rendering.
 
 - `MainActivity.kt`: Bibliothek, Android-Dateiauswahl und Leseoberfläche.
 - `PdfReaderView.kt`: Rendering, Layout, Gesten, Leseposition.
 - `DocumentStore.kt`: private Importe, Duplikaterkennung und Metadaten.
 - `ThumbnailLoader.kt`: Hintergrund-Vorschaubilder mit Speicher-/Festplatten-Cache.
 - `ReadingProgress.kt`: unabhängig getestete Normalisierung der Leseposition.
+- `LibraryView.kt`: suchbare Cover-Bibliothek.
+- `PdfTextService.kt`, `ReflowView.kt`: Extraktion, Suche, Inhaltsverzeichnis und Textmodus.
+- `PdfTools.kt`, `PdfMarkup.kt`: Organisation, Formulare, Notizen, Markierungen und sichtbare Unterschriften.
 
 Eigene Lesezeichen sind App-Metadaten, keine Änderungen innerhalb der PDF. Dokumente und Fortschritt werden nicht per Android-Backup exportiert; Deinstallation löscht die lokale Bibliothek.
 
 ## Tests
 
-JUnit-Tests prüfen ungültige und nicht-endliche Fortschrittswerte. Android-Integrationstests prüfen echten PDF-Import, Duplikate, Fortschritt, Lesezeichen, sichere Entfernung, ungültige Dateien und Rendering/Navigation mit einer generierten achtseitigen PDF.
+JUnit-Tests prüfen Fortschrittswerte, Seitenauswahl und Textverarbeitung. Android-Integrationstests prüfen echten Import, Duplikate, Fortschritt, Lesezeichen, sichere Entfernung, ungültige Dateien, Rendering, Zoom-Gesten, Reflow, Suche, Inhaltsverzeichnis, PDF-Werkzeuge, Markierungen, Unterschriften, Formulare, Passwörter und unveränderte Originale.
 
 `tools/smoke_test.py` ergänzt einen UI-Test auf einem laufenden Emulator: Seitensprung, Lesezeichen, Prozess-Neustart, Wiederaufnahme und Screenshots. Zuerst Integrationstests ausführen, damit die Test-PDF existiert. `ADB` kann auf eine alternative ADB-Datei zeigen.
 
 ```sh
 python3 tools/smoke_test.py --output /tmp/opencode/pdfcraft-smoke
+python3 tools/reflow_smoke_test.py
 ```
 
 ## Lizenz
 
-Eigener Code unter MIT, siehe `LICENSE`. Kein Quellcode oder ArtCraft-Markenmaterial aus dem Vorbild übernommen. AndroidX-Komponenten unter Apache-2.0; Gradle Wrapper unter Apache-2.0. Die PDF-Engine ist Teil des Android-Systems.
+Eigener Code unter MIT, siehe `LICENSE`. Kein Quellcode oder Markenmaterial aus PdfCraft oder MJ PDF übernommen. AndroidX, PDFBox Android und Gradle Wrapper unter Apache-2.0; siehe `NOTICE`. Die Render-Engine ist Teil des Android-Systems.

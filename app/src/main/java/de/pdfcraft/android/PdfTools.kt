@@ -17,12 +17,14 @@ import java.security.SecureRandom
 
 data class PdfProperties(val title: String, val author: String, val pages: Int, val version: String, val encrypted: Boolean)
 data class PdfFormField(val name: String, val value: String, val type: String)
+data class PdfNote(val page: Int, val text: String)
+data class UnlockedPdf(val file: File, val canExtract: Boolean, val canPrint: Boolean, val canModify: Boolean, val owner: Boolean)
 
 /**
  * Blocking PDF operations: call from an IO worker, never the UI thread. Page indices are zero-based.
  * Results are independent private cache files; callers own their eventual removal/export.
  * Editing rewrites the PDF and therefore invalidates existing digital signatures.
- * Password-required inputs are unsupported. Editable empty-password inputs produce unencrypted
+ * Editing password-required inputs needs a separately unlocked copy. Empty-password inputs produce unencrypted
  * copies, unless protect() is used. Extraction retains the catalog; navigation/form references
  * to removed pages are not repaired, and page deletion is not secure content redaction.
  */
@@ -30,6 +32,42 @@ class PdfTools(context: Context) {
     private val directory = File(context.applicationContext.cacheDir, "tools")
 
     init { PDFBoxResourceLoader.init(context.applicationContext) }
+
+    /** Only an incorrect/missing password returns true; corrupt or unreadable PDFs still fail. */
+    fun needsPassword(source: File): Boolean = io("PDF-Passwortschutz konnte nicht geprüft werden") {
+        checkSource(source)
+        try {
+            PDDocument.load(source, memory()).use { false }
+        } catch (_: InvalidPasswordException) { true }
+    }
+
+    /**
+     * A private, decrypted rendering copy, not an unrestricted export. Keep the encrypted original
+     * and enforce these captured permissions in the UI: the returned file no longer carries them.
+     * canExtract is the content-copy/search permission, not canAssembleDocument (page organizing).
+     * No password is stored. Delete the viewing copy when the document is closed.
+     */
+    fun unlockForViewing(source: File, password: String): UnlockedPdf = io("PDF konnte nicht entsperrt werden") {
+        checkSource(source)
+        val document = try { PDDocument.load(source, password, memory()) } catch (error: InvalidPasswordException) {
+            throw IOException("Das PDF-Passwort ist falsch. Bitte erneut versuchen.", error)
+        }
+        document.use {
+            val permission = document.currentAccessPermission
+            val canExtract = permission.canExtractContent()
+            val canPrint = permission.canPrint()
+            val canModify = permission.canModify()
+            val owner = permission.isOwnerPermission
+            document.isAllSecurityToBeRemoved = true
+            UnlockedPdf(output("unlocked-") { document.save(it) }, canExtract, canPrint, canModify, owner)
+        }
+    }
+
+    fun setMetadata(source: File, title: String, author: String): File = edit(source) { document ->
+        requirePermission(document.currentAccessPermission.canModify(), "Das Ändern der Metadaten")
+        document.documentInformation.title = title
+        document.documentInformation.author = author
+    }
 
     fun rotate(source: File, pages: List<Int>, degrees: Int): File = edit(source) { document ->
         checkPages(document, pages)
@@ -124,6 +162,14 @@ class PdfTools(context: Context) {
         }
     }
 
+    fun notes(source: File): List<PdfNote> = io("PDF-Notizen konnten nicht gelesen werden") {
+        load(source).use { document ->
+            (0 until document.numberOfPages).flatMap { page -> document.getPage(page).annotations
+                .mapNotNull { annotation -> annotation.contents?.takeIf { it.isNotBlank() }?.let { PdfNote(page, it) } }
+            }.take(1000)
+        }
+    }
+
     fun fillForms(source: File, values: Map<String, String>): File = edit(source) { document ->
         requirePermission(document.currentAccessPermission.canFillInForm(), "Das Ausfüllen von Formularen")
         val form = document.documentCatalog.acroForm ?: throw IOException("Dieses PDF enthält kein ausfüllbares Formular.")
@@ -185,15 +231,19 @@ class PdfTools(context: Context) {
     }
 
     private fun load(source: File): PDDocument {
-        if (!source.isFile || !source.canRead()) throw IOException("Die PDF-Datei ist nicht vorhanden oder nicht lesbar.")
+        checkSource(source)
         return try { PDDocument.load(source, memory()) } catch (error: InvalidPasswordException) {
-            throw IOException("Dieses PDF benötigt ein Passwort. Das Öffnen passwortgeschützter PDFs wird hier nicht unterstützt.", error)
+            throw IOException("Dieses PDF benötigt ein Passwort. Bitte die Datei zuerst zum Anzeigen entsperren.", error)
         }
     }
 
-    private fun output(write: (File) -> Unit): File {
+    private fun checkSource(source: File) {
+        if (!source.isFile || !source.canRead()) throw IOException("Die PDF-Datei ist nicht vorhanden oder nicht lesbar.")
+    }
+
+    private fun output(prefix: String = "pdfcraft-", write: (File) -> Unit): File {
         memory()
-        val result = File.createTempFile("pdfcraft-", ".pdf", directory)
+        val result = File.createTempFile(prefix, ".pdf", directory)
         try {
             write(result)
             return result

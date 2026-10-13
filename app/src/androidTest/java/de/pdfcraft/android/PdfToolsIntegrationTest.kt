@@ -55,6 +55,22 @@ class PdfToolsIntegrationTest {
 
     @After fun cleanUp() { files.forEach { it.delete() } }
 
+    private fun pageText(pdf: PDDocument, index: Int): String {
+        val page = pdf.getPage(index)
+        val rotation = page.rotation
+        return try {
+            // Test logical content, not TextStripper's layout heuristics for sideways text.
+            page.rotation = 0
+            PDFTextStripper().apply {
+                startPage = index + 1
+                endPage = index + 1
+                sortByPosition = true
+            }.getText(pdf)
+        } finally { page.rotation = rotation }
+    }
+
+    private fun compact(text: String): String = text.filterNot { it.isWhitespace() }
+
     @Test fun organizeRealPdfWithoutChangingOriginal() {
         val source = sample()
         val original = source.readBytes()
@@ -65,15 +81,24 @@ class PdfToolsIntegrationTest {
             assertEquals(270, pdf.getPage(2).rotation)
         }
         val extracted = track(tools.extract(rotated, listOf(2, 0)))
-        PDDocument.load(extracted).use { pdf ->
+        PDDocument.load(rotated).use { input -> PDDocument.load(extracted).use { pdf ->
             assertEquals(2, pdf.numberOfPages)
             assertEquals(270, pdf.getPage(0).rotation)
-            val text = PDFTextStripper().getText(pdf)
-            assertTrue(text.contains("Page 3"))
-            assertTrue(text.indexOf("Page 3") < text.indexOf("Page 1"))
-            assertFalse(text.contains("Page 2"))
-            assertNotNull(pdf.getPage(0).resources)
-        }
+            listOf(2, 0).forEachIndexed { outputIndex, sourceIndex ->
+                val originalContent = input.getPage(sourceIndex).contents.use { it.readBytes() }
+                val extractedContent = pdf.getPage(outputIndex).contents.use { it.readBytes() }
+                assertTrue("Source page $sourceIndex has no content stream", originalContent.isNotEmpty())
+                assertArrayEquals("Content lost or changed: input $sourceIndex -> output $outputIndex",
+                    originalContent, extractedContent)
+                assertNotNull("Resources lost on output page $outputIndex", pdf.getPage(outputIndex).resources)
+                val before = pageText(input, sourceIndex)
+                val after = pageText(pdf, outputIndex)
+                val message = "Input page $sourceIndex text=[$before]; output page $outputIndex text=[$after]"
+                assertEquals(message, compact(before), compact(after))
+                assertTrue(message, compact(after).contains("Page${sourceIndex + 1}"))
+                assertFalse(message, compact(after).contains("Page2"))
+            }
+        } }
         val deleted = track(tools.deletePages(source, listOf(1)))
         assertEquals(2, tools.properties(deleted).pages)
         val merged = track(tools.merge(listOf(extracted, deleted, source)))
@@ -94,6 +119,7 @@ class PdfToolsIntegrationTest {
         val before = source.readBytes()
         val text = "Grüße — 日本語 — 😀"
         val noted = track(tools.addNote(source, 0, text))
+        assertEquals(PdfNote(0, text), tools.notes(noted).single())
         PDDocument.load(noted).use { pdf ->
             val note = pdf.getPage(0).annotations.single()
             assertEquals(text, note.contents)
@@ -108,6 +134,26 @@ class PdfToolsIntegrationTest {
         assertArrayEquals(before, source.readBytes())
     }
 
+    @Test fun metadataEditingPreservesPagesAndOriginal() {
+        val source = sample()
+        val before = source.readBytes()
+        val changed = track(tools.setMetadata(source, "Grüße — 日本語", "Ada Lovelace"))
+        val properties = tools.properties(changed)
+        assertEquals("Grüße — 日本語", properties.title)
+        assertEquals("Ada Lovelace", properties.author)
+        assertEquals(3, properties.pages)
+        PDDocument.load(source).use { input -> PDDocument.load(changed).use { output ->
+            repeat(input.numberOfPages) { index ->
+                assertArrayEquals(input.getPage(index).contents.use { it.readBytes() },
+                    output.getPage(index).contents.use { it.readBytes() })
+            }
+        } }
+        val cleared = track(tools.setMetadata(changed, "", ""))
+        assertEquals("", tools.properties(cleared).title)
+        assertEquals("", tools.properties(cleared).author)
+        assertArrayEquals(before, source.readBytes())
+    }
+
     @Test fun validationRejectsInvalidOperations() {
         val source = sample()
         val before = source.readBytes()
@@ -119,6 +165,10 @@ class PdfToolsIntegrationTest {
         expectFailure("90") { tools.rotate(source, listOf(0), 45) }
         expectFailure("mindestens") { tools.merge(emptyList()) }
         expectFailure("Notiztext") { tools.addNote(source, 0, " ") }
+        val invalid = track(File.createTempFile("invalid-tools-", ".pdf", context.cacheDir)).apply { writeText("not a PDF") }
+        expectFailure("PDF-Passwortschutz") { tools.needsPassword(invalid) }
+        val missing = File(context.cacheDir, "missing-tools-${System.nanoTime()}.pdf")
+        expectFailure("nicht vorhanden") { tools.needsPassword(missing) }
         assertArrayEquals(before, source.readBytes())
     }
 
@@ -162,6 +212,8 @@ class PdfToolsIntegrationTest {
         val source = sample()
         val before = source.readBytes()
         val protected = track(tools.protect(source, "Sicheres-Passwort-42"))
+        assertFalse(tools.needsPassword(source))
+        assertTrue(tools.needsPassword(protected))
         expectFailure("Passwort") { tools.properties(protected) }
         PDDocument.load(protected, "Sicheres-Passwort-42").use { pdf ->
             assertTrue(pdf.isEncrypted)
@@ -170,6 +222,23 @@ class PdfToolsIntegrationTest {
             assertTrue(pdf.currentAccessPermission.canFillInForm())
             assertFalse(pdf.currentAccessPermission.canModify())
         }
+        val protectedBefore = protected.readBytes()
+        val cachedBefore = File(context.cacheDir, "tools").listFiles().orEmpty().map { it.name }.toSet()
+        expectFailure("Passwort ist falsch") { tools.unlockForViewing(protected, "wrong-password") }
+        assertEquals("Wrong passwords must not leave viewing copies", cachedBefore,
+            File(context.cacheDir, "tools").listFiles().orEmpty().map { it.name }.toSet())
+        val viewing = tools.unlockForViewing(protected, "Sicheres-Passwort-42")
+        track(viewing.file)
+        assertFalse(viewing.canExtract)
+        assertTrue(viewing.canPrint)
+        assertFalse(viewing.canModify)
+        assertFalse(viewing.owner)
+        assertEquals(File(context.cacheDir, "tools").canonicalFile, viewing.file.parentFile!!.canonicalFile)
+        PDDocument.load(viewing.file).use { pdf ->
+            assertFalse(pdf.isEncrypted)
+            assertEquals(3, pdf.numberOfPages)
+        }
+        assertArrayEquals(protectedBefore, protected.readBytes())
         val restricted = track(File.createTempFile("restricted-test-", ".pdf", context.cacheDir))
         PDDocument.load(source).use { pdf ->
             val permissions = AccessPermission().apply {
@@ -184,6 +253,13 @@ class PdfToolsIntegrationTest {
         expectFailure("Berechtigungen") { tools.extract(restricted, listOf(0)) }
         expectFailure("Berechtigungen") { tools.merge(listOf(source, restricted)) }
         expectFailure("Berechtigungen") { tools.addNote(restricted, 0, "Notiz") }
+        expectFailure("Berechtigungen") { tools.setMetadata(restricted, "Titel", "Autor") }
+        assertFalse("Empty user passwords need no password prompt", tools.needsPassword(restricted))
+        val ownerViewing = tools.unlockForViewing(restricted, "owner-secret")
+        track(ownerViewing.file)
+        assertTrue(ownerViewing.owner)
+        assertTrue(ownerViewing.canModify)
+        assertTrue(ownerViewing.canExtract)
         assertArrayEquals(before, source.readBytes())
     }
 }

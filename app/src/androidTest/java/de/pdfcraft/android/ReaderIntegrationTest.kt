@@ -33,8 +33,8 @@ class ReaderIntegrationTest {
                 page.canvas.drawColor(Color.WHITE)
                 val paint = Paint().apply { color = Color.BLACK; textSize = 28f }
                 page.canvas.drawText("PDFCraft $label — Seite ${index + 1}", 32f, 64f, paint)
-                paint.textSize = 16f
-                repeat(24) { line -> page.canvas.drawText("Lesetest Zeile ${line + 1}", 32f, 110f + line * 22f, paint) }
+                paint.textSize = 12f
+                repeat(50) { line -> page.canvas.drawText("Lesetest Zeile ${line + 1} mit eingebettetem Text", 32f, 110f + line * 11.5f, paint) }
                 pdf.finishPage(page)
             }
             file.outputStream().use { pdf.writeTo(it) }

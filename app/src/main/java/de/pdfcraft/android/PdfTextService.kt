@@ -41,7 +41,7 @@ class PdfTextService(context: Context) {
             val cached = synchronized(lock) { cache[key] }
             val text = cached ?: open(file).use { document ->
                 checkExtractionPermission(document)
-                require(page in 0 until document.numberOfPages) { "This page is not available." }
+                require(page in 0 until document.numberOfPages) { "Diese Seite ist nicht verfügbar." }
                 extractPage(document, page, active).also { value ->
                     synchronized(lock) { if (active()) cache[key] = value }
                 }
@@ -87,7 +87,7 @@ class PdfTextService(context: Context) {
                     if (!visited.add(item)) continue
                     val destination = try { item.findDestinationPage(document) } catch (_: Exception) { null }
                     val page = destination?.let { document.pages.indexOf(it) } ?: -1
-                    if (page >= 0) entries += OutlineEntry(item.title.orEmpty().ifBlank { "Untitled" }, page, depth)
+                    if (page >= 0) entries += OutlineEntry(item.title.orEmpty().ifBlank { "Ohne Titel" }, page, depth)
                     item.nextSibling?.let { stack.push(it to depth) }
                     if (depth < 64) item.firstChild?.let { stack.push(it to depth + 1) }
                 }
@@ -102,7 +102,7 @@ class PdfTextService(context: Context) {
 
     private fun checkExtractionPermission(document: PDDocument) {
         if (!document.currentAccessPermission.canExtractContent()) {
-            throw SecurityException("This PDF does not permit text extraction.")
+            throw SecurityException("Der Autor erlaubt die Textextraktion aus dieser PDF nicht.")
         }
     }
 
@@ -128,9 +128,9 @@ class PdfTextService(context: Context) {
                     try { job() } catch (_: InterruptedIOException) {
                         // Superseded requests and close are silent.
                     } catch (_: InvalidPasswordException) {
-                        deliver(active) { onError("This PDF requires a password to read its text.") }
+                        deliver(active) { onError("Diese PDF benötigt ein Passwort zum Lesen des Textes.") }
                     } catch (failure: Exception) {
-                        deliver(active) { onError(failure.message ?: "Unable to read PDF text.") }
+                        deliver(active) { onError(failure.message ?: "PDF-Text konnte nicht gelesen werden.") }
                     }
                 }
             } catch (_: RejectedExecutionException) { }

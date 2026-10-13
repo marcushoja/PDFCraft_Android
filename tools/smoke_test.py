@@ -23,6 +23,16 @@ def hierarchy():
     return ET.fromstring(adb("shell", "cat", "/sdcard/pdfcraft-smoke.xml"))
 
 
+def wait_hierarchy(predicate, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        tree = hierarchy()
+        if predicate(list(tree.iter("node"))):
+            return tree
+        time.sleep(0.2)
+    raise AssertionError("UI did not reach the expected state")
+
+
 def tap(text=None, description=None):
     for node in hierarchy().iter("node"):
         text_matches = text is not None and node.get("text", "").casefold() == text.casefold()
@@ -62,6 +72,9 @@ def main():
         "android.intent.action.VIEW", "-d",
         f"file:///data/user/0/{PACKAGE}/cache/reader-integration.pdf", "-t", "application/pdf")
     tap(description="Leseoptionen")
+    if any(n.get("text") == "PDF-Ansicht" for n in hierarchy().iter("node")):
+        tap(text="PDF-Ansicht")
+        tap(description="Leseoptionen")
     tap(text="Ansicht & Lesekomfort")
     check("Fortlaufend · vertikal scrollen")
     check("Ganze Seite einpassen", False)
@@ -116,7 +129,13 @@ def main():
     screenshot(output, "night.png")
     tap(description="Nächste Seite")
     assert any(n.get("text") == "6 / 8" for n in hierarchy().iter("node")), "Single-page navigation failed"
-    print("PASS: import, navigation, bookmark, scroll, process restart, exact resume, thumbnails, read mode, night mode")
+    pdf_node = next(n for n in hierarchy().iter("node") if n.get("content-desc", "").startswith("PDF-Dokument"))
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", pdf_node.get("bounds")))
+    adb("shell", "input", "swipe", str(x1 + (x2-x1)*4//5), str((y1+y2)//2),
+        str(x1 + (x2-x1)//5), str((y1+y2)//2), "200")
+    screenshot(output, "page-turn.png")
+    wait_hierarchy(lambda nodes: any(n.get("text") == "7 / 8" for n in nodes))
+    print("PASS: import, navigation, bookmark, scroll, process restart, exact resume, thumbnails, read mode, night mode, animated one-page swipe")
 
 
 if __name__ == "__main__":

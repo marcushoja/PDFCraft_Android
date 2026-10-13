@@ -29,7 +29,8 @@ class ReflowView(context: Context) : ScrollView(context) {
         textView.setPadding(padding, padding, padding, padding * 2)
         textView.setTextIsSelectable(true)
         textView.setLineSpacing(0f, 1.35f)
-        textView.breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+        // This compile-time constant is the same value supported by TextView since API 23.
+        textView.breakStrategy = android.graphics.text.LineBreaker.BREAK_STRATEGY_HIGH_QUALITY
         textView.hyphenationFrequency = android.text.Layout.HYPHENATION_FREQUENCY_NORMAL
         addView(textView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         textView.setOnTouchListener { _, event ->
@@ -41,10 +42,10 @@ class ReflowView(context: Context) : ScrollView(context) {
 
     fun showText(text: String, page: Int, pageCount: Int) {
         textView.text = if (text.isBlank()) {
-            "No selectable text on this page. It may be a scanned image. Reflow needs embedded text; OCR is not available."
+            "Diese Seite enthält keinen auswählbaren Text. Vermutlich ist sie ein Scan. Reflow benötigt eingebetteten Text; OCR ist noch nicht verfügbar."
         } else TextSearch.normalizeExtractedText(text)
         // Keep the TextView's actual text available to accessibility services.
-        contentDescription = "Reflow, page ${page + 1} of $pageCount"
+        contentDescription = "Reflow, Seite ${page + 1} von $pageCount"
         restoreOffset(0f)
     }
 
