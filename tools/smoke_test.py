@@ -34,7 +34,12 @@ def wait_hierarchy(predicate, timeout=30):
 
 
 def tap(text=None, description=None):
-    for node in hierarchy().iter("node"):
+    tree = None
+    if description != "Laden abbrechen":
+        tree = wait_hierarchy(lambda nodes: not any(n.get("resource-id") == "de.pdfcraft.android:id/pdf_loading" for n in nodes))
+    if tree is None:
+        tree = hierarchy()
+    for node in tree.iter("node"):
         text_matches = text is not None and node.get("text", "").casefold() == text.casefold()
         desc_matches = description is not None and node.get("content-desc") == description
         reader_matches = description == "PDF-Dokument" and node.get("content-desc", "").startswith("PDF-Dokument,")
@@ -80,7 +85,7 @@ def main():
     if any(n.get("text") == "PDF-Ansicht" for n in hierarchy().iter("node")):
         tap(text="PDF-Ansicht")
         tap(description="Leseoptionen")
-    tap(text="Ansicht & Lesekomfort")
+    tap(description="Einstellungen")
     check("Fortlaufend · vertikal scrollen")
     check("Ganze Seite einpassen", False)
     tap(text="Übernehmen")
@@ -89,7 +94,7 @@ def main():
     tap(description="Seitenzahl, zu Seite springen")
     adb("shell", "input", "text", "5")
     tap(text="Öffnen")
-    if not any(n.get("text") == "★" for n in hierarchy().iter("node")):
+    if not any(n.get("resource-id") == "de.pdfcraft.android:id/bookmark_button" and n.get("selected") == "true" for n in hierarchy().iter("node")):
         tap(description="Lesezeichen setzen oder entfernen")
     time.sleep(0.6)  # Allow debounced progress persistence.
     doc = max((d for d in records() if d["name"] == "reader-integration.pdf"), key=lambda d: d["lastOpened"])
@@ -111,11 +116,11 @@ def main():
     tap(description="reader-integration.pdf, weiterlesen")
     nodes = list(hierarchy().iter("node"))
     assert any(n.get("text") == "5 / 8" for n in nodes), "Reading position not restored"
-    assert any(n.get("text") == "★" for n in nodes), "Bookmark not restored"
+    assert any(n.get("resource-id") == "de.pdfcraft.android:id/bookmark_button" and n.get("selected") == "true" for n in nodes), "Bookmark not restored"
     resumed = next(d for d in records() if d["id"] == doc["id"])
     assert abs(resumed["offset"] - doc["offset"]) < 0.02, (doc, resumed)
     assert abs(resumed["zoom"] - doc["zoom"]) < 0.01, (doc, resumed)
-    tap(text="Seiten")
+    tap(description="Seiten")
     screenshot(output, "pages.png")
     tap(text="Schließen")
     # A single tap toggles distraction-free mode, another restores controls.
@@ -125,7 +130,7 @@ def main():
     assert not any(n.get("content-desc") == "Leseoptionen" for n in hierarchy().iter("node"))
     tap(description="PDF-Dokument")
     tap(description="Leseoptionen")
-    tap(text="Ansicht & Lesekomfort")
+    tap(description="Einstellungen")
     check("Einzelseiten · horizontal wischen")
     check("Ganze Seite einpassen")
     check("Dunkle Oberfläche")

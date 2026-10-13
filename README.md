@@ -2,6 +2,8 @@
 
 Eine native, smartphonegerechte PDF-Lese-App, inspiriert von [storytold/pdfcraft](https://github.com/storytold/pdfcraft). Eigenständige Android-Implementierung, keine offizielle ArtCraft-App und keine vollständige Portierung der Rust-Anwendung.
 
+**Von Marcus Hoja.** Die Oberfläche verbindet die kompakte Bedienung aus MJ PDF mit einem ruhigen Zen-Stil: Salbei, warmes Papier und Braun, lokale Material-Symbols-Icons und ein eigenes Buch-/Blatt-App-Icon.
+
 ## APK herunterladen
 
 Die jeweils aktuelle installierbare APK liegt unter [GitHub Releases](https://github.com/marcushoja/PDFCraft_Android/releases/latest): [PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk).
@@ -14,12 +16,14 @@ Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht ei
 - PDFs über die Android-Dateiauswahl, „Öffnen mit“ und „Teilen“ importieren.
 - Lesestelle pro Dokument speichern: Seite, relative vertikale Position und Zoom. Identische Dateien werden anhand ihres SHA-256-Hashes erkannt; erneuter Import behält den Fortschritt.
 - Fortlaufend vertikal lesen oder horizontal durch Einzelseiten wischen.
-- Animiertes Umblättern mit sanfter Perspektive, Schatten und vorgerenderten Nachbarseiten.
+- Fingergeführtes Umblättern: sichtbare gefaltete Papierrückseite unter dem Finger, gespiegelter leichter Durchdruck, Faltkante und Schatten; Abschluss oder Zurückrollen beim Loslassen. Nachbarseiten werden vorgeladen.
 - Pinch-Zoom, Doppeltipp-Zoom, Seitenbreite oder ganze Seite einpassen.
 - Seitenübersicht, direkter Seitensprung, eigene Lesezeichen.
 - Echtes Vollbild inklusive Systemleisten, mit einer Schaltfläche zum Verlassen; dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.
 - **Textmodus / Reflow:** echter eingebetteter PDF-Text als auswählbarer, umbrochener Text; einstellbare Schriftgröße und Serifenschrift, separate gespeicherte Text-Leseposition. Seitenweise Navigation. Scans ohne Text erhalten einen Hinweis statt eines vorgetäuschten Reflows.
-- Volltextsuche mit Trefferliste und Markierungen im Textmodus, eingebettetes Inhaltsverzeichnis, Teilen und Android-Drucken.
+- Abbrechbare Volltextsuche ohne Beachtung der Groß-/Kleinschreibung, mit Seitenfortschritt, Trefferliste und Markierungen im Textmodus; aufklappbares, durchsuchbares Inhaltsverzeichnis; Teilen, Screenshot und Android-Drucken.
+- Fortschritts-Ladebildschirm beim Import, beim Vorbereiten großer Dokumente und bis die erste sichtbare Seite gerendert ist; jederzeit abbrechbar.
+- Deutsch, Englisch, Französisch und Spanisch unter **Einstellungen → Sprache**. Standard: Deutsch; „Systemsprache“ folgt dem Gerät. PDF-Inhalt, Dateinamen und Notizen werden nicht übersetzt.
 - Suchbare Cover-Bibliothek mit „Zuletzt“, „Bibliothek“ und „Lesezeichen“, Umbenennen und Entfernen lokaler Kopien. Die Bedienung und Farbgebung orientieren sich an [MJ PDF](https://play.google.com/store/apps/details?id=com.gitlab.mudlej.MjPdfReader); kein MJ-PDF-Code übernommen.
 - PDF-Werkzeuge: Seiten drehen, extrahieren/neu ordnen, löschen, zusammenführen und aufteilen; Notizen hinzufügen/lesen, Text markieren, Standardformulare ausfüllen, Metadaten ändern und Passwortschutz.
 - Handschriftliche sichtbare Unterschrift per Finger; **keine kryptografische Signatur**.
@@ -27,6 +31,8 @@ Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht ei
 - Lokale private Kopien: Originaldateien werden niemals verändert. Keine Internetberechtigung, Konten, Werbung oder Telemetrie. Cloud-Dateianbieter können beim Import selbst Netzwerkzugriff benötigen.
 
 **Keine vollständige PdfCraft-Parität:** weiterhin fehlen OCR, zuverlässige Bearbeitung bestehender PDF-Texte, Office-Konvertierung, sichere Schwärzung, kryptografische Signaturen, Ebenen-/Anhangsverwaltung, PDF/A-/Preflight-Werkzeuge, XFA, vollständige Kommentar-Threads und weitere Acrobat-Pro-Funktionen. Textauswahl findet im Reflow statt, nicht auf dem gerenderten PDF-Bild. Die Nachtansicht invertiert auch Bilder.
+
+Die vollständige Liste der noch offenen Funktionen steht in [`FEATURES_TODO.md`](FEATURES_TODO.md), der Prüfstand in [`TESTING.md`](TESTING.md).
 
 **Sichere Originale, begrenzte Bearbeitung:** Werkzeuge erstellen neue Kopien, keine inkrementellen Updates. Bestehende digitale Signaturen können dadurch ungültig werden. Bearbeitete Kopien werden ohne ursprüngliche Verschlüsselung gespeichert, außer beim ausdrücklichen Passwortschutz. Extraktion/Seitenlöschung repariert nicht alle Verweise des Inhaltsverzeichnisses oder Formulare zu entfernten Seiten und ist keine sichere Schwärzung. Highlighting unterstützt zunächst ungedrehte Textseiten. Neu geschützte Kopien erlauben Lesen/Drucken, sperren aber Textextraktion/Bearbeitung. Zusammenführen ist auf importierte Bibliotheksdateien begrenzt; Aufteilen erstellt lokale Bibliothekskopien.
 
@@ -68,8 +74,12 @@ JUnit-Tests prüfen Fortschrittswerte, Seitenauswahl und Textverarbeitung. Andro
 ```sh
 python3 tools/smoke_test.py --output /tmp/opencode/pdfcraft-smoke
 python3 tools/reflow_smoke_test.py
+python3 tools/zen_ui_smoke_test.py
+python3 tools/search_cancel_smoke_test.py
 ```
 
 ## Lizenz
 
 Eigener Code unter MIT, siehe `LICENSE`. Kein Quellcode oder Markenmaterial aus PdfCraft oder MJ PDF übernommen. AndroidX, PDFBox Android und Gradle Wrapper unter Apache-2.0; siehe `NOTICE`. Die Render-Engine ist Teil des Android-Systems.
+
+Material Symbols werden über Iconify bezogen und als lokale Vektorpfade gebündelt (Google, Apache-2.0); kein Netzwerkzugriff zur Laufzeit und keine Icon-Schrift nötig.

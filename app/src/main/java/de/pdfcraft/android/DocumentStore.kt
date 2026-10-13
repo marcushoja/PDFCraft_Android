@@ -53,25 +53,33 @@ class DocumentStore(context: Context) {
     }
 
     /** Copies at most 500 MiB, checks the header, and atomically renames the copy. */
-    fun importDocument(uri: Uri): PdfDocument {
+    fun importDocument(uri: Uri, onProgress: ((copied: Long, total: Long) -> Unit)? = null, isCancelled: () -> Boolean = { false }): PdfDocument {
         var temporary: File? = null
         try {
             if (!directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
                 throw IOException("Der Speicherordner konnte nicht erstellt werden.")
             }
             val name = displayName(uri)
+            val total = try {
+                if (uri.scheme == "file") File(uri.path.orEmpty()).length()
+                else context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else -1L
+                } ?: -1L
+            } catch (_: Exception) { -1L }
             val copy = File.createTempFile("import-", ".tmp", directory)
             temporary = copy
             val digest = MessageDigest.getInstance("SHA-256")
             val header = ByteArray(1024)
             var headerLength = 0
             var size = 0L
+            var lastProgress = 0L
             val input = context.contentResolver.openInputStream(uri)
                 ?: throw IOException("Die ausgewählte Datei konnte nicht geöffnet werden.")
             input.use { source ->
                 FileOutputStream(copy).use { target ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
+                        if (isCancelled() || Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException("Import abgebrochen.")
                         val length = source.read(buffer)
                         if (length < 0) break
                         if (length == 0) continue
@@ -86,11 +94,15 @@ class DocumentStore(context: Context) {
                         }
                         digest.update(buffer, 0, length)
                         target.write(buffer, 0, length)
+                        val now = android.os.SystemClock.uptimeMillis()
+                        if (now - lastProgress >= 100) { onProgress?.invoke(size, total); lastProgress = now }
                     }
                     target.fd.sync()
                 }
             }
             val prefix = String(header, 0, headerLength, Charsets.ISO_8859_1)
+            if (isCancelled()) throw java.io.InterruptedIOException("Import abgebrochen.")
+            onProgress?.invoke(size, total)
             if (!PDF_HEADER.containsMatchIn(prefix)) {
                 throw IOException("Die ausgewählte Datei ist keine gültige PDF-Datei (PDF-Kopf fehlt).")
             }

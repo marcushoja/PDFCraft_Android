@@ -72,6 +72,18 @@ class ReaderIntegrationTest {
         assertEquals(before, store.list().size)
     }
 
+    @Test fun testCancelledImportLeavesNoPartialFileOrRecord() {
+        val context = instrumentation.targetContext
+        val store = DocumentStore(context)
+        val before = store.list().size
+        try {
+            store.importDocument(Uri.fromFile(sample("Cancelled")), isCancelled = { true })
+            fail("Cancelled import should not succeed")
+        } catch (_: java.io.IOException) { }
+        assertEquals(before,store.list().size)
+        assertFalse(File(context.filesDir,"pdf_documents").listFiles().orEmpty().any { it.name.startsWith("import-") })
+    }
+
     @Test fun testContentUriImport() {
         assumeTrue(Build.VERSION.SDK_INT >= 29)
         val resolver = instrumentation.targetContext.contentResolver

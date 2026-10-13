@@ -12,3 +12,7 @@ Apache License 2.0, Copyright The Android Open Source Project.
 The Gradle Wrapper is licensed under Apache License 2.0, Copyright Gradle.
 
 Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+Material Symbols vector paths: Copyright Google, Apache License 2.0.
+Retrieved through https://api.iconify.design/material-symbols/ and bundled
+locally as native Android vector paths; no runtime icon network requests.

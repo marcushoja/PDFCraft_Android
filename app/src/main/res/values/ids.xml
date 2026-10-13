@@ -1,0 +1,11 @@
+<resources>
+    <item name="pdf_loading" type="id" />
+    <item name="pdf_canvas" type="id" />
+    <item name="reflow_canvas" type="id" />
+    <item name="reflow_text" type="id" />
+    <item name="menu_button" type="id" />
+    <item name="bookmark_button" type="id" />
+    <item name="page_indicator" type="id" />
+    <item name="language_spinner" type="id" />
+    <item name="reader_actions" type="id" />
+</resources>

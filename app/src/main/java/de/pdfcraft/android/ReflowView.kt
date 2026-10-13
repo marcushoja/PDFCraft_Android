@@ -42,17 +42,17 @@ class ReflowView(context: Context) : ScrollView(context) {
 
     fun showText(text: String, page: Int, pageCount: Int) {
         textView.text = if (text.isBlank()) {
-            "Diese Seite enthält keinen auswählbaren Text. Vermutlich ist sie ein Scan. Reflow benötigt eingebetteten Text; OCR ist noch nicht verfügbar."
+            UiText.t(context,"Diese Seite enthält keinen auswählbaren Text. Vermutlich ist sie ein Scan. Reflow benötigt eingebetteten Text; OCR ist noch nicht verfügbar.")
         } else TextSearch.normalizeExtractedText(text)
         // Keep the TextView's actual text available to accessibility services.
-        contentDescription = "Reflow, Seite ${page + 1} von $pageCount"
+        contentDescription = UiText.t(context,"Reflow, Seite ${page + 1} von $pageCount")
         restoreOffset(0f)
     }
 
     fun setAppearance(dark: Boolean, fontSize: Float, serif: Boolean) {
         val offset = pendingOffset ?: normalizedOffset()
-        setBackgroundColor(if (dark) Color.rgb(23, 25, 29) else Color.rgb(250, 248, 243))
-        textView.setTextColor(if (dark) Color.rgb(230, 232, 235) else Color.rgb(32, 35, 40))
+        setBackgroundColor(ZenColors.of(dark).paper)
+        textView.setTextColor(ZenColors.of(dark).ink)
         textView.textSize = if (fontSize.isFinite()) fontSize.coerceIn(12f, 48f) else 19f
         textView.typeface = if (serif) Typeface.create("serif", Typeface.NORMAL) else Typeface.DEFAULT
         restoreOffset(offset)

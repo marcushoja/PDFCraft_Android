@@ -13,7 +13,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
-class PdfPrintAdapter(context: Context, private val file: File, private val name: String, private val count: Int) : PrintDocumentAdapter() {
+class PdfPrintAdapter(private val context: Context, private val file: File, private val name: String, private val count: Int) : PrintDocumentAdapter() {
     private val executor = Executors.newSingleThreadExecutor()
     override fun onLayout(oldAttributes: PrintAttributes?, newAttributes: PrintAttributes?, cancellationSignal: CancellationSignal, callback: LayoutResultCallback, extras: Bundle?) {
         if (cancellationSignal.isCanceled) callback.onLayoutCancelled()
@@ -32,7 +32,7 @@ class PdfPrintAdapter(context: Context, private val file: File, private val name
                     }
                 } }
                 if (cancellationSignal.isCanceled) callback.onWriteCancelled() else callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
-            } catch (error: Exception) { callback.onWriteFailed(error.message ?: "Drucken fehlgeschlagen") }
+            } catch (error: Exception) { callback.onWriteFailed(UiText.t(context,error.message ?: "Drucken fehlgeschlagen")) }
         }
     }
     override fun onFinish() { executor.shutdown(); super.onFinish() }

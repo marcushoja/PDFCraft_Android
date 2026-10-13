@@ -3,10 +3,26 @@ package de.pdfcraft.android
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 class TextSearchTest {
     @Test fun searchIgnoresCaseAndCollapsesWhitespace() {
         assertEquals(listOf("Hello PDF world"), TextSearch.snippets("Hello\nPDF world", "pdf"))
+    }
+
+    @Test fun searchIgnoresCaseForGermanUmlautsInBothDirections() {
+        assertEquals(listOf("ÄPFEL ÖL ÜBER"), TextSearch.snippets("ÄPFEL ÖL ÜBER", "äpfel öl über"))
+        assertEquals(listOf("äpfel öl über"), TextSearch.snippets("äpfel öl über", "ÄPFEL ÖL ÜBER"))
+    }
+
+    @Test fun searchCaseMatchingDoesNotDependOnDefaultLocale() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            assertEquals(listOf("TITLE ÄPFEL"), TextSearch.snippets("TITLE ÄPFEL", "title äpfel"))
+        } finally {
+            Locale.setDefault(previous)
+        }
     }
 
     @Test fun snippetsMarkTruncatedContext() {

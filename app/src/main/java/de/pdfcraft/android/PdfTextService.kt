@@ -3,23 +3,32 @@ package de.pdfcraft.android
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem
 import com.tom_roush.pdfbox.text.PDFTextStripper
+import com.tom_roush.pdfbox.text.TextPosition
 import java.io.File
 import java.io.InterruptedIOException
 import java.util.Collections
 import java.util.IdentityHashMap
-import java.util.concurrent.Executors
+import java.util.concurrent.CancellationException
+import java.util.concurrent.Future
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** Each job owns its PDFBox document; never shares a renderer's file descriptor. */
 class PdfTextService(context: Context) {
     private val temporaryDirectory = context.applicationContext.cacheDir
-    private val worker = Executors.newSingleThreadExecutor { task ->
+    private val worker = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue()) { task ->
         Thread(task, "PDFCraft-text").apply { isDaemon = true }
     }
     private val handler = Handler(Looper.getMainLooper())
@@ -27,6 +36,7 @@ class PdfTextService(context: Context) {
     private val extractGeneration = AtomicInteger()
     private val outlineGeneration = AtomicInteger()
     private val lock = Any()
+    private var searchFuture: Future<*>? = null
     @Volatile private var closed = false
     private data class PageKey(val path: String, val size: Long, val modified: Long, val page: Int)
     private val cache = object : LinkedHashMap<PageKey, String>(8, 0.75f, true) {
@@ -50,11 +60,22 @@ class PdfTextService(context: Context) {
         }
     }
 
-    fun search(file: File, query: String, onResult: (List<SearchHit>) -> Unit, onError: (String) -> Unit) {
-        val generation = searchGeneration.incrementAndGet()
+    /** Progress reports completed pages (one-based), on the main thread, at most about ten times a second. */
+    fun search(
+        file: File,
+        query: String,
+        onResult: (List<SearchHit>) -> Unit,
+        onError: (String) -> Unit,
+        onProgress: ((page: Int, total: Int) -> Unit)? = null
+    ) = synchronized(lock) {
+        cancelSearch()
+        val generation = searchGeneration.get()
         val active = { !closed && generation == searchGeneration.get() }
-        submit(active, onError) {
+        val progressPending = AtomicBoolean()
+        val latestProgress = AtomicReference<Pair<Int, Int>>()
+        searchFuture = submit(active, onError) {
             val hits = ArrayList<SearchHit>()
+            var lastProgressTime = 0L
             if (query.isNotBlank()) open(file).use { document ->
                 checkExtractionPermission(document)
                 for (page in 0 until document.numberOfPages) {
@@ -64,10 +85,34 @@ class PdfTextService(context: Context) {
                     TextSearch.snippets(text, query, 200 - hits.size).forEach {
                         hits += SearchHit(page, it)
                     }
+                    if (onProgress != null && active()) {
+                        latestProgress.set(page + 1 to document.numberOfPages)
+                        val now = SystemClock.uptimeMillis()
+                        if ((now - lastProgressTime >= 100L || page + 1 == document.numberOfPages || hits.size >= 200) &&
+                            progressPending.compareAndSet(false, true)) {
+                            lastProgressTime = now
+                            handler.post {
+                                progressPending.set(false)
+                                if (active()) latestProgress.get()?.let { (completed, total) -> onProgress(completed, total) }
+                            }
+                        }
+                    }
                     if (hits.size >= 200) break
                 }
             }
             deliver(active) { onResult(hits) }
+        }
+    }
+
+    /** Invalidates posted callbacks and interrupts/removes only the active or queued search. */
+    fun cancelSearch() {
+        synchronized(lock) {
+            searchGeneration.incrementAndGet()
+            searchFuture?.let { future ->
+                future.cancel(true)
+                if (future is Runnable) worker.remove(future)
+            }
+            searchFuture = null
         }
     }
 
@@ -107,9 +152,23 @@ class PdfTextService(context: Context) {
     }
 
     private fun extractPage(document: PDDocument, page: Int, active: () -> Boolean): String {
+        fun checkActive() {
+            if (!active() || Thread.currentThread().isInterrupted) throw InterruptedIOException()
+        }
+        checkActive()
         val stripper = object : PDFTextStripper() {
+            override fun processPage(page: PDPage) {
+                checkActive()
+                super.processPage(page)
+            }
+
+            override fun processTextPosition(text: TextPosition) {
+                checkActive()
+                super.processTextPosition(text)
+            }
+
             override fun writeString(text: String) {
-                if (!active() || Thread.currentThread().isInterrupted) throw InterruptedIOException()
+                checkActive()
                 super.writeString(text)
             }
         }
@@ -119,23 +178,24 @@ class PdfTextService(context: Context) {
         return TextSearch.normalizeExtractedText(stripper.getText(document))
     }
 
-    private fun submit(active: () -> Boolean, onError: (String) -> Unit, job: () -> Unit) {
+    private fun submit(active: () -> Boolean, onError: (String) -> Unit, job: () -> Unit): Future<*>? =
         synchronized(lock) {
-            if (closed) return
+            if (closed) return@synchronized null
             try {
-                worker.execute {
-                    if (!active()) return@execute
+                worker.submit {
+                    if (!active()) return@submit
                     try { job() } catch (_: InterruptedIOException) {
                         // Superseded requests and close are silent.
+                    } catch (_: CancellationException) {
+                        // Explicit cancellation is not an extraction error.
                     } catch (_: InvalidPasswordException) {
                         deliver(active) { onError("Diese PDF benötigt ein Passwort zum Lesen des Textes.") }
                     } catch (failure: Exception) {
                         deliver(active) { onError(failure.message ?: "PDF-Text konnte nicht gelesen werden.") }
                     }
                 }
-            } catch (_: RejectedExecutionException) { }
+            } catch (_: RejectedExecutionException) { null }
         }
-    }
 
     private fun deliver(active: () -> Boolean, callback: () -> Unit) {
         if (active()) handler.post { if (active()) callback() }
@@ -145,6 +205,7 @@ class PdfTextService(context: Context) {
         synchronized(lock) {
             if (closed) return
             closed = true
+            cancelSearch()
             worker.shutdownNow()
             cache.clear()
             handler.removeCallbacksAndMessages(null)

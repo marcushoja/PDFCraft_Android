@@ -1,6 +1,9 @@
 package de.pdfcraft.android
 
 import android.content.Context
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,12 +11,17 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Matrix
+import android.graphics.Path
+import android.graphics.PointF
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.graphics.RectF
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.os.Handler
 import android.os.Looper
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.LruCache
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -30,6 +38,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 
 enum class ReadingMode { CONTINUOUS, SINGLE }
 
@@ -37,6 +46,8 @@ enum class ReadingMode { CONTINUOUS, SINGLE }
 class PdfReaderView(context: Context) : View(context) {
     var onPositionChanged: ((page: Int, offset: Float, zoom: Float) -> Unit)? = null
     var onDocumentLoaded: ((pageCount: Int) -> Unit)? = null
+    var onLoadProgress: ((loaded: Int, total: Int) -> Unit)? = null
+    var onFirstPageRendered: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
     var onTap: (() -> Unit)? = null
 
@@ -89,22 +100,25 @@ class PdfReaderView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
     private val scroller = OverScroller(context)
-    private val turnScroller = OverScroller(context, DecelerateInterpolator(2f))
     private val turnMatrix = Matrix()
-    private val turnCorners = FloatArray(8)
-    private val cardCorners = FloatArray(8)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val backPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private var curlAnimator: ValueAnimator? = null
+    private val curlCorner = PointF()
+    private val curlFinger = PointF()
+    private var downX = 0f
+    private var downY = 0f
+    private var gestureAxis = 0 // 0 undecided, 1 horizontal fold, 2 vertical pan
     private var turning = false
     private var turnFrom = 0
     private var turnTo = 0
-    private var turnStartX = 0f
-    private var turnEndX = 0f
     private var settling = false
     private var scaledThisGesture = false
     private var gestureStartPage = 0
     private var pendingPosition: Triple<Int, Float, Float>? = null
     private var lastReported: Triple<Int, Float, Float>? = null
     private var documentReady = false
+    private var firstPageRendered = false
     private var openingDocument = false
 
     private val scaleDetector = ScaleGestureDetector(context,
@@ -128,6 +142,7 @@ class PdfReaderView(context: Context) : View(context) {
                 return true
             }
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                if (gestureAxis == 1) return true
                 performClick()
                 return true
             }
@@ -138,13 +153,15 @@ class PdfReaderView(context: Context) : View(context) {
             }
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (!scaleDetector.isInProgress && !scaledThisGesture) {
-                    scrollXFloat += dx
-                    if (mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
-                        // A gesture may turn only one sheet, even during a long drag.
-                        scrollXFloat = scrollXFloat.coerceIn(
-                            starts[max(0, gestureStartPage - 1)] * zoom,
-                            starts[min(pageCount - 1, gestureStartPage + 1)] * zoom)
+                    if (mode == ReadingMode.SINGLE && zoom <= 1.01f) {
+                        if (gestureAxis != 2) return true
+                        scrollYFloat += dy
+                        constrainScroll()
+                        positionChanged()
+                        invalidate()
+                        return true
                     }
+                    scrollXFloat += dx
                     scrollYFloat += dy
                     constrainScroll()
                     positionChanged()
@@ -154,12 +171,17 @@ class PdfReaderView(context: Context) : View(context) {
             }
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 if (scaledThisGesture || scaleDetector.isInProgress) return false
-                if (mode == ReadingMode.SINGLE && zoom <= 1.01f && abs(vx) > abs(vy)) {
-                    animateToPage(gestureStartPage + if (vx < 0) 1 else -1)
+                if (mode == ReadingMode.SINGLE && zoom <= 1.01f && gestureAxis != 2) {
+                    if (turning) settleCurl(turnProgress() > .32f ||
+                        (if (turnTo > turnFrom) -vx else vx) > 650f * resources.displayMetrics.density)
                     return true
                 }
+                val verticalOnly = mode == ReadingMode.SINGLE && zoom <= 1.01f
                 scroller.fling(scrollXFloat.toInt(), scrollYFloat.toInt(),
-                    (-vx).toInt(), (-vy).toInt(), 0, maxScrollX().toInt(), 0, maxScrollY().toInt())
+                    if (verticalOnly) 0 else (-vx).toInt(), (-vy).toInt(),
+                    if (verticalOnly) scrollXFloat.toInt() else 0,
+                    if (verticalOnly) scrollXFloat.toInt() else maxScrollX().toInt(),
+                    0, maxScrollY().toInt())
                 settling = true
                 postInvalidateOnAnimation()
                 return true
@@ -169,7 +191,7 @@ class PdfReaderView(context: Context) : View(context) {
     init {
         isClickable = true
         isFocusable = true
-        contentDescription = "PDF-Dokument"
+        contentDescription = UiText.t(context,"PDF-Dokument")
     }
 
     fun open(file: File, initialPage: Int = 0, initialOffset: Float = 0f, initialZoom: Float = 1f) {
@@ -191,11 +213,21 @@ class PdfReaderView(context: Context) : View(context) {
                 require(count > 0) { "Das PDF enthält keine Seiten." }
                 val pw = FloatArray(count)
                 val ph = FloatArray(count)
+                var lastProgress = SystemClock.uptimeMillis()
+                uiHandler.post { if (generation.get() == token) onLoadProgress?.invoke(0, count) }
                 for (i in 0 until count) {
                     if (generation.get() != token) return@execute
                     pdf.openPage(i).use { page ->
                         pw[i] = max(1, page.width).toFloat()
                         ph[i] = max(1, page.height).toFloat()
+                    }
+                    val now = SystemClock.uptimeMillis()
+                    if (i == count - 1 || (i + 1) % 20 == 0 || now - lastProgress >= 50L) {
+                        val loaded = i + 1
+                        lastProgress = now
+                        uiHandler.post {
+                            if (generation.get() == token) onLoadProgress?.invoke(loaded, count)
+                        }
                     }
                 }
                 uiHandler.post {
@@ -238,6 +270,7 @@ class PdfReaderView(context: Context) : View(context) {
         pendingPosition = null
         lastReported = null
         documentReady = false
+        firstPageRendered = false
         openingDocument = false
         pageWidths = FloatArray(0)
         pageHeights = FloatArray(0)
@@ -406,10 +439,7 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     private fun positionPage(): Int {
-        // Arbitrary button navigation still displays just two sheets, not every intervening page.
-        if (turning && abs(turnTo - turnFrom) > 1) {
-            return if (turnProgress() < .5f) turnFrom else turnTo
-        }
+        if (turning) return turnFrom
         return pageAt(if (mode == ReadingMode.CONTINUOUS)
             scrollYFloat else scrollXFloat + width / 2f, zoom)
     }
@@ -485,7 +515,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(if (darkPages) Color.rgb(24, 24, 24) else Color.rgb(65, 65, 65))
+        canvas.drawColor(if (darkPages) ZenColors.dark.paper else ZenColors.light.tint)
         if (width == 0 || height == 0) return
         if (pageCount == 0) {
             if (openingDocument) {
@@ -539,65 +569,39 @@ class PdfReaderView(context: Context) : View(context) {
 
     private fun drawCenteredLabel(canvas: Canvas, label: String, bounds: RectF) {
         val metrics = loadingPaint.fontMetrics
-        canvas.drawText(label, bounds.centerX(), bounds.centerY() - (metrics.ascent + metrics.descent) / 2f,
+        canvas.drawText(UiText.t(context,label), bounds.centerX(), bounds.centerY() - (metrics.ascent + metrics.descent) / 2f,
             loadingPaint)
     }
 
-    private fun turnProgress(): Float = if (turnEndX == turnStartX) 1f
-        else ((scrollXFloat - turnStartX) / (turnEndX - turnStartX)).coerceIn(0f, 1f)
+    private fun turnProgress(): Float =
+        (abs(curlCorner.x - curlFinger.x) / max(1f, sheetRect(turnFrom).width())).coerceIn(0f, 1f)
+
+    private fun sheetRect(page: Int): RectF = pageRect(page).apply {
+        offset((width - width()) / 2f - left, 0f)
+        // The new page opens at its top, independent of the old tall sheet's scroll offset.
+        if (turning && page == turnTo) offset(0f, scrollYFloat)
+    }
+
+    private fun polygonPath(points: List<PdfCurlGeometry.Point>): Path = Path().apply {
+        if (points.isNotEmpty()) {
+            moveTo(points[0].x, points[0].y)
+            for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
+            close()
+        }
+    }
 
     private fun drawSinglePages(canvas: Canvas) {
         val snapshots = cache.snapshot()
-        val first: Int
-        val second: Int
-        val progress: Float
-        val direction: Float
-        if (turning && abs(turnTo - turnFrom) > 1) {
-            first = turnFrom
-            second = turnTo
-            progress = turnProgress()
-            direction = if (second > first) 1f else -1f
-        } else {
-            first = pageAt(scrollXFloat, zoom)
-            second = min(pageCount - 1, first + 1)
-            progress = ((scrollXFloat - starts[first] * zoom) / max(1f, width * zoom)).coerceIn(0f, 1f)
-            direction = 1f
-        }
-        fun drawCard(page: Int, displacement: Float, depth: Float) {
-            val rect = pageRect(page)
-            // Center each sheet independently; layout scroll is only the transition's progress.
-            rect.offset((width - rect.width()) / 2f - rect.left, 0f)
+        val first = if (turning) turnFrom else currentPage
+        val second = if (turning) turnTo else first
+        fun bitmapFor(page: Int): Bitmap? {
             val key = renderKey(page)
-            val bitmap = cache.get(key) ?: snapshots.entries.filter { it.key.page == page }
+            return cache.get(key) ?: snapshots.entries.filter { it.key.page == page }
                 .minByOrNull { abs(it.key.width - key.width) }?.value
-            val inset = rect.height() * .025f * depth
-            val scale = 1f - .045f * depth
-            val left = rect.centerX() - rect.width() * scale / 2f + displacement * width
-            val right = left + rect.width() * scale
-            val top = rect.top + rect.height() * (1f - scale) / 2f
-            val bottom = top + rect.height() * scale
-            cardCorners[0] = rect.left; cardCorners[1] = rect.top
-            cardCorners[2] = rect.right; cardCorners[3] = rect.top
-            cardCorners[4] = rect.right; cardCorners[5] = rect.bottom
-            cardCorners[6] = rect.left; cardCorners[7] = rect.bottom
-            val tilt = if (displacement < 0f) inset else -inset
-            turnCorners[0] = left; turnCorners[1] = top + inset + tilt
-            turnCorners[2] = right; turnCorners[3] = top + inset - tilt
-            turnCorners[4] = right; turnCorners[5] = bottom - inset + tilt
-            turnCorners[6] = left; turnCorners[7] = bottom - inset - tilt
-            turnMatrix.reset()
-            turnMatrix.setPolyToPoly(cardCorners, 0, turnCorners, 0, 4)
-            canvas.save()
-            canvas.concat(turnMatrix)
-            // Soft cast shadow follows the moving sheet rather than the viewport.
-            val shadowWidth = gap * (1f + depth)
-            for (step in 8 downTo 1) {
-                val spread = shadowWidth * step / 8f
-                shadowPaint.color = Color.BLACK
-                shadowPaint.alpha = (3 + 4 * depth).toInt()
-                canvas.drawRoundRect(rect.left - spread, rect.top - spread / 2f,
-                    rect.right + spread, rect.bottom + spread, spread, spread, shadowPaint)
-            }
+        }
+        fun drawSheet(page: Int) {
+            val rect = sheetRect(page)
+            val bitmap = bitmapFor(page)
             placeholderPaint.color = if (darkPages) Color.BLACK else Color.WHITE
             canvas.drawRect(rect, placeholderPaint)
             if (bitmap != null) canvas.drawBitmap(bitmap, null, rect, pagePaint)
@@ -607,27 +611,63 @@ class PdfReaderView(context: Context) : View(context) {
                 canvas.clipRect(rect)
                 val visible = RectF(rect)
                 if (visible.intersect(0f, 0f, width.toFloat(), height.toFloat())) {
-                    drawCenteredLabel(canvas, if (key in failedRenders) "Seite nicht verfügbar"
+                    drawCenteredLabel(canvas, if (renderKey(page) in failedRenders) "Seite nicht verfügbar"
                         else "Seite wird geladen …", visible)
                 }
                 canvas.restore()
             }
-            // Gentle fold-like edge shading gives motion depth without distorting the text heavily.
-            if (depth > .001f) {
-                val edge = if (displacement < 0f) rect.right else rect.left
-                val shadeWidth = min(rect.width() * .12f, gap * 5f) * depth
-                for (step in 0 until 12) {
-                    shadowPaint.alpha = (32f * depth * (1f - step / 12f)).toInt()
-                    val a = shadeWidth * step / 12f
-                    val b = shadeWidth * (step + 1) / 12f
-                    canvas.drawRect(if (displacement < 0f) edge - b else edge + a,
-                        rect.top, if (displacement < 0f) edge - a else edge + b, rect.bottom, shadowPaint)
-                }
-            }
-            canvas.restore()
         }
-        if (second != first && progress > 0f) drawCard(second, direction * (1f - progress), 1f - progress)
-        if (progress < 1f || second == first) drawCard(first, -direction * progress, progress)
+        if (!turning) drawSheet(first)
+        else {
+            drawSheet(second)
+            val rect = sheetRect(first)
+            val geometry = PdfCurlGeometry(curlCorner.x, curlCorner.y, curlFinger.x, curlFinger.y)
+            val polygon = listOf(PdfCurlGeometry.Point(rect.left, rect.top),
+                PdfCurlGeometry.Point(rect.right, rect.top), PdfCurlGeometry.Point(rect.right, rect.bottom),
+                PdfCurlGeometry.Point(rect.left, rect.bottom))
+            val front = polygonPath(geometry.clip(polygon, false))
+            val patch = polygonPath(geometry.clip(polygon, true))
+            val nx = geometry.nx
+            val ny = geometry.ny
+            val mx = geometry.mx
+            val my = geometry.my
+            turnMatrix.setValues(geometry.matrixValues())
+            val back = Path(patch).apply { transform(turnMatrix) }
+            val curvature = min(gap * 4f, max(2f, geometry.length * .16f))
+            // Shadow cast by the lifted sheet onto the exposed underlying page.
+            canvas.save()
+            canvas.clipRect(rect)
+            canvas.clipPath(patch)
+            shadowPaint.shader = LinearGradient(mx, my, mx + nx * curvature, my + ny * curvature,
+                Color.argb(100, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+            shadowPaint.alpha = 255
+            canvas.drawRect(rect, shadowPaint)
+            canvas.restore()
+            canvas.save()
+            canvas.clipPath(front)
+            drawSheet(first)
+            canvas.restore()
+            // The reflected corner contains C -> P: its paper backside stays under the finger.
+            canvas.save()
+            canvas.clipPath(back)
+            backPaint.color = if (darkPages) Color.rgb(65, 64, 60) else Color.rgb(239, 232, 214)
+            backPaint.alpha = 255
+            canvas.drawPath(back, backPaint)
+            canvas.save()
+            canvas.concat(turnMatrix)
+            backPaint.colorFilter = pagePaint.colorFilter
+            backPaint.alpha = 28
+            bitmapFor(first)?.let { canvas.drawBitmap(it, null, rect, backPaint) }
+            backPaint.colorFilter = null
+            backPaint.alpha = 255
+            canvas.restore()
+            shadowPaint.shader = LinearGradient(mx, my, mx - nx * curvature, my - ny * curvature,
+                intArrayOf(Color.argb(110, 45, 36, 24), Color.argb(65, 255, 255, 255), Color.TRANSPARENT),
+                floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP)
+            canvas.drawPath(back, shadowPaint)
+            canvas.restore()
+            shadowPaint.shader = null
+        }
 
         // One serial render at a time, visible sheets first, then exactly one neighbor each side.
         if (!renderInFlight && !scaleDetector.isInProgress) {
@@ -676,6 +716,10 @@ class PdfReaderView(context: Context) : View(context) {
                         // Keep one sharp version per page, not every previous zoom level.
                         cache.snapshot().keys.filter { it.page == key.page && it != key }.forEach { cache.remove(it) }
                         cache.put(key, result)
+                        if (!firstPageRendered && documentReady && key.page == currentPage) {
+                            firstPageRendered = true
+                            onFirstPageRendered?.invoke()
+                        }
                     }
                     else {
                         result?.recycle()
@@ -691,13 +735,43 @@ class PdfReaderView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             scaledThisGesture = false
+            downX = event.x
+            downY = event.y
+            gestureAxis = 0
             parent?.requestDisallowInterceptTouchEvent(true)
         }
         scaleDetector.onTouchEvent(event)
+        // Input dispatchers may coalesce the final MOVE under rendering load. The release
+        // coordinate is authoritative, otherwise a completed swipe could wrongly roll back.
+        if ((event.actionMasked == MotionEvent.ACTION_MOVE || event.actionMasked == MotionEvent.ACTION_UP) && event.pointerCount == 1 &&
+            !scaledThisGesture && mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
+            val dx = event.x - downX
+            val dy = event.y - downY
+            if (gestureAxis == 0 && max(abs(dx), abs(dy)) > 3f * resources.displayMetrics.density) {
+                gestureAxis = if (abs(dx) > abs(dy)) 1 else 2
+                if (gestureAxis == 1) {
+                    val target = gestureStartPage + if (dx < 0f) 1 else -1
+                    if (target in 0 until pageCount) beginCurl(target, downY)
+                }
+            }
+            if (gestureAxis == 1 && turning && curlAnimator == null) {
+                val rect = sheetRect(turnFrom)
+                val direction = if (turnTo > turnFrom) 1f else -1f
+                // C reflects exactly onto the actual touch, not onto a translated card edge.
+                val travel = ((curlCorner.x - event.x) * direction).coerceIn(.5f, rect.width() * 2f)
+                curlFinger.x = curlCorner.x - direction * travel
+                val top = max(0f, rect.top)
+                val bottom = min(height.toFloat(), rect.bottom)
+                curlFinger.y = event.y.coerceIn(top + .5f, max(top + .5f, bottom - .5f))
+                invalidate()
+            }
+        }
         gestures.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             parent?.requestDisallowInterceptTouchEvent(false)
-            if (!settling && !turning && !scaledThisGesture) snapPage()
+            if (turning && curlAnimator == null) {
+                settleCurl(event.actionMasked != MotionEvent.ACTION_CANCEL && turnProgress() > .32f)
+            }
             invalidate() // Schedule the sharp render after a pinch ends.
         }
         return true
@@ -713,7 +787,7 @@ class PdfReaderView(context: Context) : View(context) {
         super.onInitializeAccessibilityNodeInfo(info)
         info.isScrollable = pageCount > 1
         if (pageCount > 0) {
-            info.contentDescription = "PDF-Dokument, Seite ${currentPage + 1} von $pageCount"
+            info.contentDescription = UiText.t(context,"PDF-Dokument, Seite ${currentPage + 1} von $pageCount")
             if (currentPage > 0) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
             if (currentPage < pageCount - 1) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
         }
@@ -731,21 +805,7 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     override fun computeScroll() {
-        if (turning) {
-            if (turnScroller.computeScrollOffset()) {
-                scrollXFloat = turnScroller.currX.toFloat()
-                constrainScroll()
-                positionChanged()
-                postInvalidateOnAnimation()
-            } else {
-                scrollXFloat = turnEndX
-                turning = false
-                constrainScroll()
-                positionChanged()
-                invalidate()
-            }
-            return
-        }
+        if (turning) return
         if (scroller.computeScrollOffset()) {
             scrollXFloat = scroller.currX.toFloat()
             scrollYFloat = scroller.currY.toFloat()
@@ -754,45 +814,68 @@ class PdfReaderView(context: Context) : View(context) {
             postInvalidateOnAnimation()
         } else if (settling) {
             settling = false
-            snapPage()
         }
-    }
-
-    private fun snapPage() {
-        if (mode != ReadingMode.SINGLE || zoom > 1.01f || pageCount == 0) return
-        animateToPage(currentPage.coerceIn(max(0, gestureStartPage - 1), min(pageCount - 1, gestureStartPage + 1)))
     }
 
     private fun animateToPage(page: Int) {
         if (pageCount == 0) return
         val destination = page.coerceIn(0, pageCount - 1)
-        val target = (starts[destination] * zoom).coerceIn(0f, maxScrollX())
-        settling = false
-        scroller.abortAnimation()
-        turnScroller.abortAnimation()
-        turning = false
-        if (abs(target - scrollXFloat) > 1f) {
-            turnFrom = currentPage
-            turnTo = destination
-            turnStartX = scrollXFloat
-            turnEndX = target
-            turning = true
-            turnScroller.startScroll(scrollXFloat.toInt(), 0,
-                target.toInt() - scrollXFloat.toInt(), 0, 280)
-            postInvalidateOnAnimation()
-        } else {
-            scrollXFloat = target
-            positionChanged()
+        if (destination == currentPage) return
+        beginCurl(destination, height.toFloat())
+        settleCurl(true)
+    }
+
+    private fun beginCurl(destination: Int, touchY: Float) {
+        stopAnimations()
+        turnFrom = currentPage
+        turnTo = destination
+        val rect = sheetRect(turnFrom)
+        // Use a viewport corner on a vertically scrolled tall sheet, not an offscreen corner.
+        curlCorner.set(if (destination > turnFrom) rect.right else rect.left,
+            if (touchY < height / 2f) max(0f, rect.top) else min(height.toFloat(), rect.bottom))
+        curlFinger.set(curlCorner.x + if (destination > turnFrom) -.5f else .5f,
+            curlCorner.y + if (touchY < height / 2f) .5f else -.5f)
+        turning = true
+        invalidate()
+    }
+
+    private fun settleCurl(complete: Boolean) {
+        if (!turning || curlAnimator != null) return
+        val rect = sheetRect(turnFrom)
+        val sx = curlFinger.x
+        val sy = curlFinger.y
+        val direction = if (turnTo > turnFrom) 1f else -1f
+        // A flat crease beyond the far edge removes the entire front and backside.
+        val ex = if (complete) curlCorner.x - direction * (rect.width() * 2f + gap) else curlCorner.x
+        val ey = curlCorner.y
+        val animator = ValueAnimator.ofFloat(0f, 1f)
+        curlAnimator = animator
+        animator.duration = if (complete) 320L else 220L
+        animator.interpolator = DecelerateInterpolator(1.5f)
+        animator.addUpdateListener {
+            val t = it.animatedValue as Float
+            val lift = if (complete) sin(Math.PI * t).toFloat() * min(height * .12f, gap * 6f) else 0f
+            val inward = if (curlCorner.y < height / 2f) 1f else -1f
+            curlFinger.set(sx + (ex - sx) * t, sy + (ey - sy) * t + inward * lift)
             invalidate()
         }
+        animator.addListener(object : AnimatorListenerAdapter() {
+            private var canceled = false
+            override fun onAnimationCancel(animation: Animator) { canceled = true }
+            override fun onAnimationEnd(animation: Animator) {
+                if (canceled) return
+                curlAnimator = null
+                turning = false
+                if (complete) setPosition(turnTo, 0f) else invalidate()
+            }
+        })
+        animator.start()
     }
 
     private fun stopAnimations() {
-        if (turning && abs(turnTo - turnFrom) > 1) {
-            scrollXFloat = starts[positionPage()] * zoom
-        }
         scroller.abortAnimation()
-        turnScroller.abortAnimation()
+        curlAnimator?.cancel()
+        curlAnimator = null
         turning = false
         settling = false
     }
