@@ -50,6 +50,27 @@ class PdfReaderView(context: Context) : View(context) {
     var onFirstPageRendered: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
     var onTap: (() -> Unit)? = null
+    var onSelectionChanged: ((page: Int, selection: PdfTextSelection?) -> Unit)? = null
+    /** Decrypted viewing copies must retain the original document's extraction permission. */
+    var textSelectionAllowed:Boolean=true
+        set(value) { field=value;if(!value) clearTextSelection() }
+    var textSelection: PdfTextSelection? = null
+        private set
+    var textSelectionPage: Int = -1
+        private set
+
+    private var sourceFile: File? = null
+    private val textCache = LruCache<Int, PdfPageText>(3)
+    private var selectionRequest = 0
+    private var requestedSelectionPage = -1
+    private var selectionStart = 0
+    private var selectionEnd = 0
+    private var selectionGesture = false
+    private var draggingHandle = 0
+    private var consumeSelectionTap = false
+    private val handleRadius = 9f * resources.displayMetrics.density
+    private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(75, 35, 120, 245) }
+    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(35, 120, 245) }
 
     val pageCount: Int get() = pageWidths.size
     val currentPage: Int get() = positionPage()
@@ -75,10 +96,13 @@ class PdfReaderView(context: Context) : View(context) {
         val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "PDFCraft-render").apply { isDaemon = true }
         }
+        val annotationExecutor:ExecutorService=Executors.newSingleThreadExecutor { runnable -> Thread(runnable,"PDFCraft-annotation-cache").apply { isDaemon=true } }
         // Only this worker's serial executor accesses the document and its pages.
         var renderer: PdfRenderer? = null
         var descriptor: ParcelFileDescriptor? = null
         var prepared: PreparedPdf? = null
+        var renderIdentity:String=""
+        var sharePages:Boolean=false
         fun closeDocument() {
             try { renderer?.close() } catch (_: Exception) { }
             renderer = null
@@ -86,12 +110,17 @@ class PdfReaderView(context: Context) : View(context) {
             descriptor = null
             prepared?.close()
             prepared = null
+            renderIdentity=""
         }
     }
     private var worker: DocumentWorker? = null
     private var renderInFlight = false
+    @Volatile private var pendingAnnotationSource:File?=null
+    private var renderRevision=0
+    private var preparingAnnotations=false
+    var onAnnotationsPrepared:(()->Unit)?=null
     private val failedRenders = HashSet<RenderKey>()
-    private data class RenderKey(val page: Int, val width: Int, val height: Int)
+    private data class RenderKey(val page: Int, val width: Int, val height: Int, val revision:Int=0)
     private val cache = object : LruCache<RenderKey, Bitmap>(32 * 1024 * 1024) {
         override fun sizeOf(key: RenderKey, value: Bitmap): Int = value.allocationByteCount
         // Do not recycle evicted images: a hardware Canvas may still reference them.
@@ -145,6 +174,7 @@ class PdfReaderView(context: Context) : View(context) {
                 return true
             }
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                if (consumeSelectionTap) { consumeSelectionTap = false; return true }
                 if (gestureAxis == 1) return true
                 performClick()
                 return true
@@ -154,7 +184,15 @@ class PdfReaderView(context: Context) : View(context) {
                 changeZoom(if (zoom > 1.1f) 1f else 2.5f, e.x, e.y)
                 return true
             }
+            override fun onLongPress(e: MotionEvent) {
+                if (scaledThisGesture || scaleDetector.isInProgress || turning) return
+                selectionGesture = true
+                consumeSelectionTap = true
+                stopAnimations()
+                selectTextAt(e.x, e.y)
+            }
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
+                if (selectionGesture) return true
                 if (!scaleDetector.isInProgress && !scaledThisGesture) {
                     if (mode == ReadingMode.SINGLE && zoom <= 1.01f) {
                         if (gestureAxis != 2) return true
@@ -173,6 +211,7 @@ class PdfReaderView(context: Context) : View(context) {
                 return true
             }
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+                if (selectionGesture) return false
                 if (scaledThisGesture || scaleDetector.isInProgress) return false
                 if (mode == ReadingMode.SINGLE && zoom <= 1.01f && gestureAxis != 2) {
                     if (turning) settleCurl(turnProgress() > .32f ||
@@ -199,6 +238,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun open(file: File, initialPage: Int = 0, initialOffset: Float = 0f, initialZoom: Float = 1f) {
         close()
+        sourceFile = file
         val token = generation.get()
         pendingPosition = Triple(initialPage, finite(initialOffset, 0f).coerceIn(0f, 1f),
             finite(initialZoom, 1f).coerceIn(1f, 5f))
@@ -209,20 +249,26 @@ class PdfReaderView(context: Context) : View(context) {
             try {
                 if (generation.get() != token) return@execute
                 com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context.applicationContext)
-                val prepared = PdfAnnotationRendering.prepare(file,context.cacheDir)
+                // Never parse a large image PDF with PDFBox before its first native page.
+                val cachedPreparation=PdfAnnotationRendering.peek(file,context.cacheDir)
+                val prepared = cachedPreparation ?: PreparedPdf(file,false)
                 document.prepared = prepared
                 if (generation.get() != token) { document.closeDocument();return@execute }
+                pendingAnnotationSource=if(cachedPreparation==null) file else null
                 val fd = ParcelFileDescriptor.open(prepared.file, ParcelFileDescriptor.MODE_READ_ONLY)
                 document.descriptor = fd
                 val pdf = PdfRenderer(fd)
                 document.renderer = pdf
+                document.renderIdentity="${prepared.file.canonicalPath}:${prepared.file.length()}:${prepared.file.lastModified()}"
+                document.sharePages=!file.name.startsWith("unlocked-")
                 val count = pdf.pageCount
                 require(count > 0) { "Das PDF enthält keine Seiten." }
-                val pw = FloatArray(count)
-                val ph = FloatArray(count)
+                val cachedSizes=PdfPageSizeCache.read(file,context.cacheDir)?.takeIf { it.first.size==count && it.second.size==count }
+                val pw = cachedSizes?.first ?: FloatArray(count)
+                val ph = cachedSizes?.second ?: FloatArray(count)
                 var lastProgress = SystemClock.uptimeMillis()
                 uiHandler.post { if (generation.get() == token) onLoadProgress?.invoke(0, count) }
-                for (i in 0 until count) {
+                for (i in 0 until if(cachedSizes==null) count else 0) {
                     if (generation.get() != token) return@execute
                     pdf.openPage(i).use { page ->
                         pw[i] = max(1, page.width).toFloat()
@@ -237,6 +283,7 @@ class PdfReaderView(context: Context) : View(context) {
                         }
                     }
                 }
+                if(cachedSizes==null) runCatching { PdfPageSizeCache.write(file,context.cacheDir,pw,ph) }
                 uiHandler.post {
                     if (generation.get() == token) {
                         pageWidths = pw
@@ -270,7 +317,13 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     fun close() {
+        pendingAnnotationSource=null
+        preparingAnnotations=false
+        renderRevision=0
         generation.incrementAndGet()
+        clearTextSelection()
+        sourceFile = null
+        textCache.evictAll()
         stopAnimations()
         settling = false
         renderInFlight = false
@@ -299,12 +352,14 @@ class PdfReaderView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         close()
         worker?.executor?.shutdown() // Queued close runs after the currently open page finishes.
+        worker?.annotationExecutor?.shutdownNow()
         worker = null
         super.onDetachedFromWindow()
     }
 
     fun goToPage(page: Int) {
         if (pageCount == 0) return
+        clearTextSelection()
         stopAnimations()
         settling = false
         setPosition(page.coerceIn(0, pageCount - 1), 0f)
@@ -353,6 +408,251 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     fun resetZoom() = changeZoom(1f, width / 2f, height / 2f)
+
+    val selectedTextRange: PdfTextSelection? get() = textSelection
+
+    fun clearTextSelection() {
+        selectionRequest++
+        requestedSelectionPage = -1
+        val previousPage = textSelectionPage
+        val hadSelection = textSelection != null
+        textSelection = null
+        textSelectionPage = -1
+        draggingHandle = 0
+        if (hadSelection) onSelectionChanged?.invoke(previousPage, null)
+        invalidate()
+    }
+
+    fun selectAllText(): Boolean {
+        val page = textSelectionPage
+        val text = textCache.get(page) ?: return false
+        if (text.glyphs.isEmpty()) return false
+        updateSelection(page, text, 0, text.glyphs.lastIndex)
+        return true
+    }
+
+    /** Visible selection bounds in view-local coordinates, for a floating ActionMode. */
+    fun selectionContentRect(): android.graphics.Rect {
+        val union = RectF()
+        val selection = textSelection ?: return android.graphics.Rect()
+        if (textSelectionPage !in 0 until pageCount) return android.graphics.Rect()
+        selection.boxes.forEach { box ->
+            val visible = selectionBoxOnScreen(box)
+            if (visible.intersect(0f, 0f, width.toFloat(), height.toFloat())) union.union(visible)
+        }
+        return android.graphics.Rect().also { union.roundOut(it) }
+    }
+
+    private fun selectionBoxOnScreen(box: RectF): RectF {
+        val page = pageRect(textSelectionPage)
+        return RectF(page.left + box.left * page.width(), page.top + box.top * page.height(),
+            page.left + box.right * page.width(), page.top + box.bottom * page.height())
+    }
+
+    private fun selectTextAt(x: Float, y: Float) {
+        if(!textSelectionAllowed) {
+            android.widget.Toast.makeText(context,R.string.ui_extraction_denied,android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!documentReady || pageCount == 0) return
+        // Hit-test both axes: a page gap or a centered sheet margin is not text.
+        val coordinate = if (mode == ReadingMode.CONTINUOUS) scrollYFloat + y else scrollXFloat + x
+        val page = pageAt(coordinate, zoom)
+        val rect = pageRect(page)
+        if (!rect.contains(x, y)) return
+        clearTextSelection()
+        requestedSelectionPage = page
+        val nx = (x - rect.left) / rect.width()
+        val ny = (y - rect.top) / rect.height()
+        val request = selectionRequest
+        val token = generation.get()
+        fun apply(text: PdfPageText) {
+            if (token != generation.get() || request != selectionRequest) return
+            requestedSelectionPage = -1
+            val index = text.closestGlyph(nx, ny)
+            if (index == null) {
+                android.widget.Toast.makeText(context, R.string.ui_pdf_select_no_text, android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            var start = index
+            var end = index
+            fun word(i: Int) = text.glyphs[i].text.any { it.isLetterOrDigit() || it == '\'' || it == '’' }
+            fun adjacent(a: Int, b: Int): Boolean {
+                val first = text.glyphs[a]
+                val second = text.glyphs[b]
+                return first.line == second.line && word(a) && word(b) &&
+                    second.bounds.left - first.bounds.right <= max(first.bounds.height(), second.bounds.height()) * .35f
+            }
+            if (word(index)) {
+                while (start > 0 && adjacent(start - 1, start)) start--
+                while (end < text.glyphs.lastIndex && adjacent(end, end + 1)) end++
+            }
+            updateSelection(page, text, start, end)
+        }
+        textCache.get(page)?.let { apply(it); return }
+        val document = worker ?: return
+        val source = sourceFile ?: return
+        document.executor.execute {
+            if (token != generation.get()) return@execute
+            val extraction = runCatching {
+                com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context.applicationContext)
+                PdfPageTextExtractor.extract(source, page)
+            }
+            val text = extraction.getOrNull()
+            uiHandler.post {
+                if (token == generation.get() && request == selectionRequest) {
+                    if (text != null) { textCache.put(page, text); apply(text) }
+                    else {
+                        requestedSelectionPage = -1
+                        val message=extraction.exceptionOrNull()?.message?.let { UiText.t(context,it) } ?: context.getString(R.string.ui_pdf_select_no_text)
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateSelection(page: Int, text: PdfPageText, start: Int, end: Int) {
+        val selected=text.selection(min(start,end),max(start,end))
+        if(selected.text.isBlank()) { clearTextSelection();return }
+        selectionStart = min(start, end)
+        selectionEnd = max(start, end)
+        textSelectionPage = page
+        textSelection = selected
+        invalidate()
+        onSelectionChanged?.invoke(page, textSelection)
+    }
+
+    /** Current handle centers in view-local coordinates; also useful for accessibility/tests. */
+    fun selectionHandleCenters(): List<PointF> {
+        val text = textCache.get(textSelectionPage) ?: return emptyList()
+        if (textSelection == null) return emptyList()
+        val start = selectionBoxOnScreen(text.glyphs[selectionStart].bounds)
+        val end = selectionBoxOnScreen(text.glyphs[selectionEnd].bounds)
+        return listOf(PointF(start.left, start.bottom + handleRadius), PointF(end.right, end.bottom + handleRadius))
+    }
+
+    private fun drawTextSelection(canvas: Canvas) {
+        val selection = textSelection ?: return
+        if (textSelectionPage !in 0 until pageCount || turning) return
+        canvas.save()
+        canvas.clipRect(pageRect(textSelectionPage))
+        selection.boxes.forEach { canvas.drawRect(selectionBoxOnScreen(it), selectionPaint) }
+        canvas.restore()
+        selectionHandleCenters().forEach { canvas.drawCircle(it.x, it.y, handleRadius, handlePaint) }
+    }
+
+    /** First draw stays fast; annotation inspection runs independently and is cached. */
+    private fun prepareAnnotationsAfterFirstPage(document:DocumentWorker,token:Int) {
+        val source=pendingAnnotationSource
+        pendingAnnotationSource=null
+        if(source==null) { onAnnotationsPrepared?.invoke();return }
+        preparingAnnotations=true
+        invalidate()
+        document.annotationExecutor.execute {
+            val result=runCatching { PdfAnnotationRendering.prepare(source,context.cacheDir) }
+            val prepared=result.getOrNull()
+            if(token!=generation.get()) { prepared?.close();return@execute }
+            if(prepared==null || prepared.file==source) {
+                prepared?.close()
+                uiHandler.post {
+                    if(token==generation.get()) {
+                        preparingAnnotations=false;invalidate();onAnnotationsPrepared?.invoke()
+                        if(result.isFailure) android.widget.Toast.makeText(context,R.string.ui_annotation_prepare_failed,android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                return@execute
+            }
+            try {
+                document.executor.execute switch@ {
+                    if(token!=generation.get()) { prepared.close();return@switch }
+                    var fd:ParcelFileDescriptor?=null
+                    try {
+                        fd=ParcelFileDescriptor.open(prepared.file,ParcelFileDescriptor.MODE_READ_ONLY)
+                        val renderer=PdfRenderer(fd)
+                        document.closeDocument()
+                        document.descriptor=fd;document.renderer=renderer;document.prepared=prepared
+                        document.renderIdentity="${prepared.file.canonicalPath}:${prepared.file.length()}:${prepared.file.lastModified()}"
+                        uiHandler.post {
+                            if(token==generation.get()) {
+                                renderRevision++;failedRenders.clear();preparingAnnotations=false
+                                invalidate();onAnnotationsPrepared?.invoke()
+                            }
+                        }
+                    } catch(error:Exception) {
+                        fd?.close();prepared.close()
+                        uiHandler.post { if(token==generation.get()) { preparingAnnotations=false;invalidate();android.widget.Toast.makeText(context,R.string.ui_annotation_prepare_failed,android.widget.Toast.LENGTH_LONG).show() } }
+                    }
+                }
+            } catch(_:java.util.concurrent.RejectedExecutionException) { prepared.close() }
+        }
+    }
+
+    private fun drawPreparationStatus(canvas:Canvas) {
+        if(!preparingAnnotations) return
+        val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=ZenColors.of(darkPages).ink;textSize=12f*resources.displayMetrics.scaledDensity }
+        val text=context.getString(R.string.ui_annotations_preparing)
+        val pad=12f*resources.displayMetrics.density
+        val boxWidth=paint.measureText(text)+pad*2
+        val boxHeight=pad*3
+        paint.color=ZenColors.of(darkPages).card
+        canvas.drawRoundRect(width-boxWidth-pad,height-boxHeight-pad,width-pad,height-pad,pad,pad,paint)
+        paint.color=ZenColors.of(darkPages).ink
+        canvas.drawText(text,width-boxWidth,height-pad*2,paint)
+    }
+
+    private fun handleSelectionTouch(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            draggingHandle = 0
+            val handles = selectionHandleCenters()
+            handles.forEachIndexed { index, point ->
+                if (abs(point.x - event.x) <= handleRadius * 2.5f && abs(point.y - event.y) <= handleRadius * 2.5f)
+                    draggingHandle = index + 1
+            }
+            if (draggingHandle != 0) {
+                stopAnimations()
+                selectionGesture = true
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true
+            }
+            if (textSelection != null) {
+                // Consume an outside tap without toggling the reader chrome. A drag may still pan.
+                consumeSelectionTap = true
+                clearTextSelection()
+            } else consumeSelectionTap = false
+        }
+        if (draggingHandle == 0) return false
+        if (event.pointerCount > 1) {
+            draggingHandle = 0
+            return true
+        }
+        if (event.actionMasked == MotionEvent.ACTION_MOVE || event.actionMasked == MotionEvent.ACTION_UP) {
+            val page = textSelectionPage
+            val text = textCache.get(page)
+            if (text != null && page in 0 until pageCount) {
+                val rect = pageRect(page)
+                // Stay on this page, including when the finger moves beyond its edge.
+                val x = ((event.x - rect.left) / rect.width()).coerceIn(0f, 1f)
+                val y = ((event.y - handleRadius - rect.top) / rect.height()).coerceIn(0f, 1f)
+                val index = text.closestGlyph(x, y) ?: text.glyphs.indices.minByOrNull { i ->
+                    val box = text.glyphs[i].bounds
+                    val dx = max(box.left - x, max(0f, x - box.right))
+                    val dy = max(box.top - y, max(0f, y - box.bottom))
+                    dx * dx + dy * dy
+                }
+                if (index != null) {
+                    if (draggingHandle == 1) updateSelection(page, text, min(index, selectionEnd), selectionEnd)
+                    else updateSelection(page, text, selectionStart, max(index, selectionStart))
+                }
+            }
+        }
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            draggingHandle = 0
+            selectionGesture = false
+            parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return true
+    }
 
     private fun finite(value: Float, fallback: Float) = if (value.isFinite()) value else fallback
 
@@ -485,9 +785,12 @@ class PdfReaderView(context: Context) : View(context) {
     private fun positionChanged() {
         if (pageCount == 0 || !documentReady || pendingPosition != null) return
         val p = position()
+        if ((textSelectionPage >= 0 && textSelectionPage != p.first) ||
+            (requestedSelectionPage >= 0 && requestedSelectionPage != p.first)) clearTextSelection()
         val state = Triple(p.first, p.second, zoom)
         if (state != lastReported) {
             lastReported = state
+            textSelection?.let { onSelectionChanged?.invoke(textSelectionPage,it) }
             onPositionChanged?.invoke(state.first, state.second, state.third)
         }
     }
@@ -517,7 +820,7 @@ class PdfReaderView(context: Context) : View(context) {
         val reduction = min(1.0, kotlin.math.sqrt(pixelBudget / (w.toDouble() * h)))
         w *= reduction.toFloat()
         h *= reduction.toFloat()
-        return RenderKey(page, max(1, w.toInt()), max(1, h.toInt()))
+        return RenderKey(page, max(1, w.toInt()), max(1, h.toInt()),renderRevision)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -533,6 +836,8 @@ class PdfReaderView(context: Context) : View(context) {
         }
         if (mode == ReadingMode.SINGLE && zoom <= 1.01f) {
             drawSinglePages(canvas)
+            drawTextSelection(canvas)
+            drawPreparationStatus(canvas)
             return
         }
         val start = if (mode == ReadingMode.CONTINUOUS) scrollYFloat else scrollXFloat
@@ -572,6 +877,8 @@ class PdfReaderView(context: Context) : View(context) {
             }
         }
         if (!renderInFlight && request != null && !scaleDetector.isInProgress) requestRender(request)
+        drawTextSelection(canvas)
+        drawPreparationStatus(canvas)
     }
 
     private fun drawCenteredLabel(canvas: Canvas, label: String, bounds: RectF) {
@@ -698,15 +1005,22 @@ class PdfReaderView(context: Context) : View(context) {
         document.executor.execute {
             var bitmap: Bitmap? = null
             var error: Throwable? = null
+            var sharedBitmap=false
             try {
                 if (token == generation.get()) {
                     val pdf = document.renderer
                     if (pdf != null) {
+                        val sharedKey="${document.renderIdentity}:${key.page}:${key.width}:${key.height}"
+                        bitmap=if(document.sharePages) PdfRenderedPageMemoryCache.get(sharedKey) else null
+                        if(bitmap!=null) sharedBitmap=true
+                        else {
                         pdf.openPage(key.page).use { page ->
                             val image = Bitmap.createBitmap(key.width, key.height, Bitmap.Config.ARGB_8888)
                             bitmap = image
                             image.eraseColor(Color.WHITE)
                             page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        }
+                        if(document.sharePages) bitmap?.let { PdfRenderedPageMemoryCache.put(sharedKey,it);sharedBitmap=true }
                         }
                     }
                 }
@@ -716,7 +1030,7 @@ class PdfReaderView(context: Context) : View(context) {
             val failed = error != null
             uiHandler.post {
                 if (token != generation.get()) {
-                    result?.recycle()
+                    if(!sharedBitmap) result?.recycle()
                 } else {
                     renderInFlight = false
                     if (!failed && result != null) {
@@ -726,10 +1040,11 @@ class PdfReaderView(context: Context) : View(context) {
                         if (!firstPageRendered && documentReady && key.page == currentPage) {
                             firstPageRendered = true
                             onFirstPageRendered?.invoke()
+                            if(token==generation.get()) prepareAnnotationsAfterFirstPage(document,token)
                         }
                     }
                     else {
-                        result?.recycle()
+                        if(!sharedBitmap) result?.recycle()
                         failedRenders.add(key)
                         onError?.invoke("Diese PDF-Seite konnte nicht dargestellt werden. Möglicherweise ist sie beschädigt oder zu groß.")
                     }
@@ -740,7 +1055,9 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (handleSelectionTouch(event)) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            selectionGesture = false
             scaledThisGesture = false
             downX = event.x
             downY = event.y
@@ -751,7 +1068,7 @@ class PdfReaderView(context: Context) : View(context) {
         // Input dispatchers may coalesce the final MOVE under rendering load. The release
         // coordinate is authoritative, otherwise a completed swipe could wrongly roll back.
         if ((event.actionMasked == MotionEvent.ACTION_MOVE || event.actionMasked == MotionEvent.ACTION_UP) && event.pointerCount == 1 &&
-            !scaledThisGesture && mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
+            !selectionGesture && !scaledThisGesture && mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
             val dx = event.x - downX
             val dy = event.y - downY
             if (gestureAxis == 0 && max(abs(dx), abs(dy)) > 3f * resources.displayMetrics.density) {
@@ -833,6 +1150,7 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     private fun beginCurl(destination: Int, touchY: Float) {
+        clearTextSelection()
         stopAnimations()
         turnFrom = currentPage
         turnTo = destination

@@ -9,10 +9,18 @@ import com.tom_roush.pdfbox.util.Matrix
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Caller owns this handle; close only after all native renderers/descriptors have closed. */
-data class PreparedPdf(val file: File, val temporary: Boolean) : Closeable {
-    override fun close() { if (temporary) file.delete() }
+class PreparedPdf(val file: File, val temporary: Boolean, private val release: (() -> Unit)? = null) : Closeable {
+    private val closed = AtomicBoolean(false)
+    override fun close() {
+        if (closed.compareAndSet(false, true)) {
+            if (temporary) file.delete()
+            release?.invoke()
+        }
+    }
 }
 
 /**
@@ -22,14 +30,20 @@ data class PreparedPdf(val file: File, val temporary: Boolean) : Closeable {
  * The source and its editable annotations remain byte-for-byte untouched.
  *
  * Call on a worker after PDFBoxResourceLoader.init(context). Reuse a PreparedPdf across reader,
- * thumbnails and print where practical. There is deliberately no shared file cache: each handle
- * owns a unique temporary file, so one consumer cannot delete another consumer's backing file.
+ * thumbnails and print where practical. Shared cache copies have leases and temporary=false;
+ * decrypted unlocked-* sources instead receive unique, caller-owned temporary copies.
  * Non-text-markup annotations retain the native renderer's existing support/limitations.
  */
 object PdfAnnotationRendering {
+    /** Fast cache-only lookup; null means inspection is still needed. Never invokes PDFBox. */
+    fun peek(source: File, cacheDir: File, forPrinting: Boolean = false): PreparedPdf? =
+        PdfDocumentRenderCache.peek(source, cacheDir, forPrinting)
+
     fun prepare(source: File, cacheDir: File, forPrinting: Boolean = false): PreparedPdf {
         return try {
-            prepareUnlocked(source, cacheDir, forPrinting)
+            PdfDocumentRenderCache.prepare(source, cacheDir, forPrinting) {
+                prepareUnlocked(source, cacheDir, forPrinting)
+            }
         } catch (_: InvalidPasswordException) {
             // Leave password/unlock handling to the existing native caller, not this adapter.
             PreparedPdf(source, false)
@@ -37,11 +51,13 @@ object PdfAnnotationRendering {
     }
 
     private fun prepareUnlocked(source: File, cacheDir: File, forPrinting: Boolean): PreparedPdf {
+        checkInterrupted()
         if (!cacheDir.isDirectory && !cacheDir.mkdirs()) throw IOException("Cannot create PDF viewing cache")
         val memory = MemoryUsageSetting.setupMixed(16L * 1024 * 1024).setTempDir(cacheDir)
         PDDocument.load(source, memory).use { document ->
             var changed = false
             for (page in document.pages) {
+                checkInterrupted()
                 val annotations = page.annotations
                 val visible = annotations.filterIsInstance<PDAnnotationTextMarkup>().filter {
                     !it.isHidden && !it.isInvisible && (if(forPrinting) it.isPrinted else !it.isNoView)
@@ -89,6 +105,7 @@ object PdfAnnotationRendering {
             document.isAllSecurityToBeRemoved = true
             val output = File.createTempFile("pdfcraft-view-", ".pdf", cacheDir)
             try {
+                checkInterrupted()
                 document.save(output)
                 return PreparedPdf(output, true)
             } catch (error: Throwable) {
@@ -96,5 +113,9 @@ object PdfAnnotationRendering {
                 throw error
             }
         }
+    }
+
+    private fun checkInterrupted() {
+        if (Thread.currentThread().isInterrupted) throw InterruptedIOException("PDF preparation cancelled")
     }
 }

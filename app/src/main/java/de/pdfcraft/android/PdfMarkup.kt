@@ -223,6 +223,30 @@ class PdfMarkup(context: Context) {
         if (count == 0) throw IOException("Der Suchtext wurde auf dieser Seite nicht gefunden.")
     }
 
+    /** Exact glyph selection: unlike query marking, this never marks other matching text. */
+    fun markSelection(source:File,page:Int,text:String,quads:List<FloatArray>,color:Int=Color.YELLOW,style:TextMarkupStyle=TextMarkupStyle.HIGHLIGHT):File = edit(source,page) { document,target ->
+        if(!document.currentAccessPermission.canModifyAnnotations()) throw IOException("Das Hervorheben ist durch die PDF-Berechtigungen nicht erlaubt.")
+        if(!document.currentAccessPermission.canExtractContent()) throw IOException("Die Textextraktion ist durch die PDF-Berechtigungen nicht erlaubt.")
+        if(text.isBlank() || quads.isEmpty() || quads.size>10000) throw IOException("Bitte zuerst Text auswählen.")
+        val subtype=when(style) {
+            TextMarkupStyle.HIGHLIGHT -> PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
+            TextMarkupStyle.UNDERLINE -> PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
+            TextMarkupStyle.STRIKEOUT -> PDAnnotationTextMarkup.SUB_TYPE_STRIKEOUT
+        }
+        for(quad in quads) {
+            require(quad.size==8 && quad.all { it.isFinite() }) { "Ungültige Textauswahl." }
+            val xs=listOf(quad[0],quad[2],quad[4],quad[6]);val ys=listOf(quad[1],quad[3],quad[5],quad[7])
+            val left=xs.min();val bottom=ys.min();val width=xs.max()-left;val height=ys.max()-bottom
+            require(width>0 && height>0) { "Ungültige Textauswahl." }
+            target.annotations.add(PDAnnotationTextMarkup(subtype).apply {
+                rectangle=PDRectangle(left,bottom,width,height);quadPoints=quad.copyOf()
+                this.color=PDColor(floatArrayOf(Color.red(color)/255f,Color.green(color)/255f,Color.blue(color)/255f),PDDeviceRGB.INSTANCE)
+                constantOpacity=if(style==TextMarkupStyle.HIGHLIGHT) .4f else 1f
+                contents=text;titlePopup="PDFCraft";isPrinted=true;this.page=target;constructAppearances(document)
+            })
+        }
+    }
+
     /** Appends rounded black vector strokes in the bottom-right crop-box area; embeds no font. */
     fun addSignature(source: File, page: Int, strokes: List<List<InkPoint>>): File {
         val snapshot = strokes.map { it.toList() }

@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_annotations_preparing">Anmerkungen vorbereiten…</string>
+    <string name="ui_annotation_prepare_failed">Einige Anmerkungen konnten nicht angezeigt werden. Die PDF bleibt unverändert.</string>
+    <string name="ui_pdf_select_no_text">Kein auswählbarer Text auf dieser Seite. Scans benötigen OCR.</string>
+    <string name="ui_pdf_select_loading">Textauswahl wird vorbereitet…</string>
+    <string name="ui_markup_selection_hint">Seite %1$s · Nur der ausgewählte Text wird markiert, auch über mehrere Zeilen.</string>
+    <string name="ui_selection_copy">Kopieren</string>
+    <string name="ui_selection_all">Alles auswählen</string>
+    <string name="ui_selection_copied">Text kopiert</string>
     <string name="ui_tools_copy_hint">Änderungen werden in einer neuen PDF-Kopie gespeichert.</string>
     <string name="ui_markup_matches">Seite %1$s · Alle passenden Textstellen auf dieser Seite. Text muss in einer PDF-Zeile liegen; Scans benötigen OCR.</string>
     <string name="ui_markup_highlight">Hervorheben</string>

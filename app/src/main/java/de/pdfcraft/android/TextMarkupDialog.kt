@@ -23,6 +23,7 @@ object MarkupColors {
 class TextMarkupDialog(
     context:Context, private val dark:Boolean, private val page:Int,
     private val initialText:String, initialColor:Int, initialStyle:TextMarkupStyle,
+    private val exactSelection:Boolean=false,
     private val onApply:(String,Int,TextMarkupStyle)->Unit,
 ):Dialog(context) {
     private val theme=ZenColors.of(dark)
@@ -40,13 +41,14 @@ class TextMarkupDialog(
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE)
         val body=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(22),dp(20),dp(20));background=round(theme.paper,26) }
         body.addView(label(context.getString(R.string.ui_highlight_text),21f).apply { setTypeface(typeface,android.graphics.Typeface.BOLD) })
-        body.addView(label(context.getString(R.string.ui_markup_matches,(page+1).toString()),12f).apply { setTextColor(theme.muted);setPadding(0,dp(8),0,dp(14)) })
+        body.addView(label(context.getString(if(exactSelection) R.string.ui_markup_selection_hint else R.string.ui_markup_matches,(page+1).toString()),12f).apply { setTextColor(theme.muted);setPadding(0,dp(8),0,dp(14)) })
         input=EditText(context).apply {
             id=R.id.markup_text;setText(initialText);hint=context.getString(R.string.ui_word_sentence)
             setSingleLine();textSize=16f;setTextColor(theme.ink);setHintTextColor(theme.muted)
             setPadding(dp(14),dp(8),dp(14),dp(8));background=round(theme.card)
         }
         body.addView(input,LinearLayout.LayoutParams(-1,dp(52)))
+        if(exactSelection) { input.isEnabled=false;input.setTextColor(theme.ink) }
         val modeRow=LinearLayout(context).apply { setPadding(0,dp(16),0,dp(12)) }
         listOf(Triple(TextMarkupStyle.HIGHLIGHT,"highlight",R.string.ui_markup_highlight),Triple(TextMarkupStyle.UNDERLINE,"underline",R.string.ui_markup_underline),Triple(TextMarkupStyle.STRIKEOUT,"strikeout",R.string.ui_markup_strikeout)).forEach { (type,icon,name) ->
             val cell=LinearLayout(context).apply {

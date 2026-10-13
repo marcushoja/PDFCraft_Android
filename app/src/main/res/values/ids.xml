@@ -11,4 +11,6 @@
     <item name="markup_text" type="id" />
     <item name="markup_preview" type="id" />
     <item name="mark_selection" type="id" />
+    <item name="pdf_selection_copy" type="id" />
+    <item name="pdf_selection_all" type="id" />
 </resources>

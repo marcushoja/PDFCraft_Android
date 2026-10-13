@@ -46,6 +46,8 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("reader_settings", MODE_PRIVATE) }
     private lateinit var root: LinearLayout
     private var reader: PdfReaderView? = null
+    private var selectionMode:android.view.ActionMode?=null
+    private var directSelection:Pair<Int,PdfTextSelection>?=null
     private var reflowView: ReflowView? = null
     private var reflow = false
     private var reflowOffset = 0f
@@ -92,7 +94,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (outlinePanel != null) closeOutline() else if (reader != null) showLibrary() else finish()
+                if(selectionMode!=null) selectionMode?.finish()
+                else if (outlinePanel != null) closeOutline() else if (reader != null) showLibrary() else finish()
             }
         })
         store = DocumentStore(this)
@@ -237,6 +240,44 @@ class MainActivity : ComponentActivity() {
         top.addView(iconButton("menu", "Leseoptionen") { readerMenu() }.apply { this.id = R.id.menu_button })
         topBar = top; root.addView(top)
         val view = PdfReaderView(this)
+        view.onSelectionChanged = { page,selection ->
+            if(selection==null) { directSelection=null;selectionMode?.finish();selectionMode=null }
+            else {
+                directSelection=page to selection
+                if(selectionMode==null) selectionMode=startActionMode(object:android.view.ActionMode.Callback2() {
+                    override fun onCreateActionMode(mode:android.view.ActionMode,menu:android.view.Menu):Boolean {
+                        menu.add(0,R.id.pdf_selection_copy,0,getString(R.string.ui_selection_copy)).apply { setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS) }
+                        menu.add(0,R.id.mark_selection,1,getString(R.string.ui_highlight_text)).apply { setIcon(MaterialSymbols.drawable(this@MainActivity,"highlight",accent));setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS) }
+                        menu.add(0,R.id.pdf_selection_all,2,getString(R.string.ui_selection_all)).apply { setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM) }
+                        return true
+                    }
+                    override fun onPrepareActionMode(mode:android.view.ActionMode,menu:android.view.Menu)=false
+                    override fun onActionItemClicked(mode:android.view.ActionMode,item:android.view.MenuItem):Boolean {
+                        val picked=directSelection ?: return false
+                        when(item.itemId) {
+                            R.id.pdf_selection_copy -> {
+                                (getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("PDF",picked.second.text))
+                                mode.finish()
+                            }
+                            R.id.mark_selection -> { mode.finish();markupDialog(picked.second.text,picked) }
+                            R.id.pdf_selection_all -> view.selectAllText()
+                            else -> return false
+                        }
+                        return true
+                    }
+                    override fun onDestroyActionMode(mode:android.view.ActionMode) {
+                        selectionMode=null;directSelection=null;view.clearTextSelection()
+                    }
+                    override fun onGetContentRect(mode:android.view.ActionMode,target:android.view.View,rect:android.graphics.Rect) {
+                        rect.set(view.selectionContentRect())
+                        val sourceLocation=IntArray(2);val targetLocation=IntArray(2)
+                        view.getLocationOnScreen(sourceLocation);target.getLocationOnScreen(targetLocation)
+                        rect.offset(sourceLocation[0]-targetLocation[0],sourceLocation[1]-targetLocation[1])
+                    }
+                },android.view.ActionMode.TYPE_FLOATING)
+                else selectionMode?.invalidateContentRect()
+            }
+        }
         view.id = R.id.pdf_canvas
         reader = view
         val frame = FrameLayout(this)
@@ -507,6 +548,7 @@ class MainActivity : ComponentActivity() {
                     if (isDestroyed || documentId != doc.id) { result.getOrNull()?.file?.delete(); return@post }
                     result.fold({ value ->
                         unlocked = value; dialog.dismiss(); input.text.clear()
+                        reader?.textSelectionAllowed = value.canExtract
                         loadingView?.visibility = View.VISIBLE
                         reader?.open(value.file, doc.page, doc.offset, doc.zoom)
                     }, { input.error = l(it.message ?: "Passwort nicht akzeptiert") })
@@ -692,15 +734,18 @@ class MainActivity : ComponentActivity() {
         }.show()
     }
 
-    private fun markupDialog(selectedText:String="") {
+    private fun markupDialog(selectedText:String="",exact:Pair<Int,PdfTextSelection>?=null) {
         val doc=currentDocument() ?: return
         if(unlocked!=null && unlocked?.owner!=true) { error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.");return }
         val source=viewingFile(doc)
-        val page=reader?.currentPage ?: 0
+        val page=exact?.first ?: reader?.currentPage ?: 0
         val savedStyle=runCatching { TextMarkupStyle.valueOf(prefs.getString("markup_style","HIGHLIGHT")!!) }.getOrDefault(TextMarkupStyle.HIGHLIGHT)
-        TextMarkupDialog(this,dark,page,selectedText,prefs.getInt("markup_color",MarkupColors.values[0]),savedStyle) { query,color,style ->
+        TextMarkupDialog(this,dark,page,selectedText,prefs.getInt("markup_color",MarkupColors.values[0]),savedStyle,exactSelection=exact!=null) { query,color,style ->
             prefs.edit().putInt("markup_color",color).putString("markup_style",style.name).apply()
-            runTool("${doc.name.removeSuffix(".pdf")}-markiert.pdf") { markup.markText(source,page,query,color,style) }
+            runTool("${doc.name.removeSuffix(".pdf")}-markiert.pdf") {
+                if(exact!=null) markup.markSelection(source,page,exact.second.text,exact.second.pdfQuads,color,style)
+                else markup.markText(source,page,query,color,style)
+            }
         }.show()
     }
 

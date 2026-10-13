@@ -4,7 +4,8 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 
 ## Lesen und Smartphone-Bedienung
 
-- [ ] Text direkt auf gerenderten PDF-Seiten auswählen, mit verschiebbaren Griffen und zuverlässiger Glyphen-/Koordinatenzuordnung; derzeit erfolgt Auswahl im Reflow.
+- [x] Text direkt auf gerenderten PDF-Seiten auswählen: lang drücken, verschiebbare Griffe, Kopieren und exakte farbige Markierung. Glyphenkoordinaten berücksichtigen Beschnitt, Seitendrehung, Zoom und Scrollposition.
+- [ ] Auswahl über Seitengrenzen und Unterstützung für individuell gedrehte/geschrägte oder vertikale Schrift; solche Glyphen werden momentan ausgelassen. Scans brauchen weiterhin OCR.
 - [ ] Interaktive interne/externe PDF-Links samt Zurück-/Vorwärts-Verlauf.
 - [ ] Rand-Erkennung und automatische Randbeschneidung, ohne Dokumentänderungen.
 - [ ] Zwei-Seiten-Ansicht, RTL-Leserichtung und weitere Comic-/Buchlayouts.

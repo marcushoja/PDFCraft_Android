@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_annotations_preparing">Preparando anotaciones…</string>
+    <string name="ui_annotation_prepare_failed">No se pudieron mostrar algunas anotaciones. El PDF no se modifica.</string>
+    <string name="ui_pdf_select_no_text">No hay texto seleccionable en esta página. Los escaneos requieren OCR.</string>
+    <string name="ui_pdf_select_loading">Preparando la selección…</string>
+    <string name="ui_markup_selection_hint">Página %1$s · Solo se marcará el texto seleccionado, incluso en varias líneas.</string>
+    <string name="ui_selection_copy">Copiar</string>
+    <string name="ui_selection_all">Seleccionar todo</string>
+    <string name="ui_selection_copied">Texto copiado</string>
     <string name="ui_tools_copy_hint">Los cambios se guardan en una nueva copia PDF.</string>
     <string name="ui_markup_matches">Página %1$s · Todas las coincidencias de esta página. El texto debe caber en una sola línea PDF; los escaneos requieren OCR.</string>
     <string name="ui_markup_highlight">Resaltar</string>

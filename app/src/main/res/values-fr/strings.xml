@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_annotations_preparing">Préparation des annotations…</string>
+    <string name="ui_annotation_prepare_failed">Certaines annotations ne peuvent pas être affichées. Le PDF reste inchangé.</string>
+    <string name="ui_pdf_select_no_text">Aucun texte sélectionnable sur cette page. Les scans nécessitent un OCR.</string>
+    <string name="ui_pdf_select_loading">Préparation de la sélection…</string>
+    <string name="ui_markup_selection_hint">Page %1$s · Seul le texte sélectionné sera marqué, même sur plusieurs lignes.</string>
+    <string name="ui_selection_copy">Copier</string>
+    <string name="ui_selection_all">Tout sélectionner</string>
+    <string name="ui_selection_copied">Texte copié</string>
     <string name="ui_tools_copy_hint">Les modifications sont enregistrées dans une nouvelle copie PDF.</string>
     <string name="ui_markup_matches">Page %1$s · Toutes les occurrences correspondantes sur cette page. Le texte doit tenir sur une seule ligne PDF ; les scans nécessitent un OCR.</string>
     <string name="ui_markup_highlight">Surligner</string>

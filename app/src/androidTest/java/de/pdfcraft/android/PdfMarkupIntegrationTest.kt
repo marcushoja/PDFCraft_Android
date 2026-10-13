@@ -61,6 +61,20 @@ class PdfMarkupIntegrationTest {
         return result
     }
 
+    @Test fun exactSelectionMarksOnlyProvidedGlyphQuadsAcrossLines() {
+        val source=sample(listOf("HELLO repeat HELLO","HELLO next line"))
+        val original=source.readBytes()
+        val quads=listOf(floatArrayOf(70f,312f,104f,312f,70f,298f,104f,298f),floatArrayOf(70f,294f,104f,294f,70f,280f,104f,280f))
+        val output=track(markup.markSelection(source,0,"HELLO\nHELLO",quads,MarkupColors.values[4],TextMarkupStyle.HIGHLIGHT))
+        PDDocument.load(output).use { document ->
+            val annotations=document.getPage(0).annotations.filterIsInstance<PDAnnotationTextMarkup>()
+            assertEquals("Do not annotate another matching word",2,annotations.size)
+            quads.forEachIndexed { index,quad -> assertArrayEquals(quad,annotations[index].quadPoints,0f) }
+            assertEquals("HELLO\nHELLO",annotations.first().contents)
+        }
+        assertArrayEquals(original,source.readBytes())
+    }
+
     private fun expectFailure(word: String, action: () -> Unit) {
         try { action(); fail("Expected IOException") } catch (error: IOException) {
             assertTrue(error.message.orEmpty(), error.message.orEmpty().contains(word))
@@ -276,15 +290,15 @@ class PdfMarkupIntegrationTest {
             val first = PdfAnnotationRendering.prepare(saved, context.cacheDir)
             val second = PdfAnnotationRendering.prepare(saved, context.cacheDir)
             try {
-                assertTrue(first.temporary)
-                assertTrue(second.temporary)
-                assertNotEquals(first.file, second.file)
+                assertFalse(first.temporary)
+                assertFalse(second.temporary)
+                assertEquals(first.file, second.file)
                 PDDocument.load(first.file).use { document ->
                     assertTrue(document.getPage(0).annotations.isEmpty())
                     assertTrue(document.getPage(0).resources.xObjectNames.toList().isNotEmpty())
                 }
                 first.close()
-                assertFalse(first.file.exists())
+                assertTrue("Cached viewing copy survives a consumer closing",first.file.exists())
                 assertTrue("One consumer must not delete another's viewing copy", second.file.isFile)
                 assertArrayEquals(savedBytes, saved.readBytes())
                 PDDocument.load(saved).use { assertEquals(2, it.getPage(0).annotations.size) }
