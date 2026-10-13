@@ -58,7 +58,12 @@ def check(label, checked=True):
 
 
 def screenshot(directory, name):
-    (directory / name).write_bytes(adb("exec-out", "screencap", "-p", binary=True))
+    data = adb("exec-out", "screencap", "-p", binary=True)
+    # Recent Android builds may prepend a multiple-display warning to stdout.
+    start = data.find(b"\x89PNG\r\n\x1a\n")
+    if start < 0:
+        raise AssertionError("Screenshot is not a PNG")
+    (directory / name).write_bytes(data[start:])
 
 
 def main():
@@ -131,8 +136,8 @@ def main():
     assert any(n.get("text") == "6 / 8" for n in hierarchy().iter("node")), "Single-page navigation failed"
     pdf_node = next(n for n in hierarchy().iter("node") if n.get("content-desc", "").startswith("PDF-Dokument"))
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", pdf_node.get("bounds")))
-    adb("shell", "input", "swipe", str(x1 + (x2-x1)*4//5), str((y1+y2)//2),
-        str(x1 + (x2-x1)//5), str((y1+y2)//2), "200")
+    adb("shell", "input", "touchscreen", "-d", "0", "swipe", str(x1 + (x2-x1)*4//5), str((y1+y2)//2),
+        str(x1 + (x2-x1)//5), str((y1+y2)//2), "500")
     screenshot(output, "page-turn.png")
     wait_hierarchy(lambda nodes: any(n.get("text") == "7 / 8" for n in nodes))
     print("PASS: import, navigation, bookmark, scroll, process restart, exact resume, thumbnails, read mode, night mode, animated one-page swipe")

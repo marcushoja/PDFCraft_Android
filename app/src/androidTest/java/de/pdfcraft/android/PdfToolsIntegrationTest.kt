@@ -191,6 +191,12 @@ class PdfToolsIntegrationTest {
             widget.page = page
             page.annotations.add(widget)
             field.setValue("Original")
+            form.fields.add(PDTextField(form).apply {
+                partialName = "readonly"
+                defaultAppearance = "/Helv 12 Tf 0 g"
+                setValue("Not editable")
+                isReadOnly = true
+            })
             pdf.save(source)
         }
         val before = source.readBytes()

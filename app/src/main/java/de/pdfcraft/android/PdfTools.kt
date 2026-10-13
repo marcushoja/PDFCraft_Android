@@ -156,7 +156,7 @@ class PdfTools(context: Context) {
         load(source).use { document ->
             val form = document.documentCatalog.acroForm ?: return@use emptyList()
             if (form.hasXFA()) throw IOException("XFA-Formulare werden nicht unterstützt.")
-            form.fieldTree.filterIsInstance<PDTerminalField>().map { field ->
+            form.fieldTree.filterIsInstance<PDTerminalField>().filter { !it.isReadOnly && it.fieldType != "Sig" }.map { field ->
                 PdfFormField(field.fullyQualifiedName, field.valueAsString.orEmpty(), field.fieldType.orEmpty())
             }
         }
