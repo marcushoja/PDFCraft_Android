@@ -24,8 +24,7 @@ def capture(already_open=False):
     tap(description='Done');ready()
 
 def choose_mode(label):
-    node=next(n for n in hierarchy().iter('node') if n.get('text') in ['Farbe','Graustufen','Dokumentkontrast'])
-    tap(text=node.get('text'))
+    tap(description='Filter')
     item=next(n for n in hierarchy().iter('node') if n.get('text')==label and n.get('resource-id')=='android:id/text1')
     x1,y1,x2,y2=map(int,re.findall(r'\d+',item.get('bounds')))
     adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2));ready()
@@ -54,7 +53,12 @@ def drag_corner():
     scale=min((x2-x1-48*density)/photo.width,(y2-y1-48*density)/photo.height)
     w,h=photo.width*scale,photo.height*scale
     left=x1+(x2-x1-w)/2;top=y1+(y2-y1-h)/2
-    adb('shell','input','swipe',str(int(left)),str(int(top)),str(int(left+w*.12)),str(int(top+h*.10)),'600')
+    adb('shell','input','motionevent','DOWN',str(int(left)),str(int(top)))
+    adb('shell','input','motionevent','MOVE',str(int(left+w*.12)),str(int(top+h*.10)))
+    time.sleep(.3)
+    out=Path('/tmp/opencode/pdfcraft-scanner');out.mkdir(parents=True,exist_ok=True)
+    screenshot(out,'camera-loupe.png')
+    adb('shell','input','motionevent','UP',str(int(left+w*.12)),str(int(top+h*.10)))
     time.sleep(.3)
     corners=draft()[1]['corners']
     assert corners[0][0]>.08 and corners[0][1]>.06,corners
@@ -65,15 +69,17 @@ def main():
     adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity','-a','android.intent.action.MAIN')
     tap(description='PDF scannen');ready()
     if any(n.get('resource-id')==PACKAGE+':id/scan_accept_button' for n in hierarchy().iter('node')):
-        tap(description='Bearbeitung abbrechen');ready()
+        tap(description='Zurück');ready()
     check('Nach dem Übernehmen nächstes Foto',False)
+    print('Scanner: camera and corner magnifier',flush=True)
     capture();tap(text='Heller');choose_mode('Farbe');check('Nach dem Übernehmen nächstes Foto',True)
     drag_corner();screenshot(out,'camera-corners.png')
-    tap(text='Seite übernehmen')
+    tap(description='Seite übernehmen')
     capture(already_open=True)
     assert draft()[1]['tone']=='BRIGHTER'
     check('Nach dem Übernehmen nächstes Foto',False)
-    choose_mode('Graustufen');tap(text='Seite übernehmen');ready()
+    choose_mode('Graustufen');tap(description='Seite übernehmen');ready()
+    print('Scanner: thumbnail actions',flush=True)
     drag_thumbnail_last_to_first()
     tap(description='Seitenoptionen');tap(text='Seite drehen');ready()
     rotated=draft()[1];assert rotated['pages'][rotated['selected']]['turns']==1
@@ -81,19 +87,20 @@ def main():
     tap(description='Seitenoptionen');tap(text='Nach hinten verschieben' if rotated['selected']==0 else 'Nach vorne verschieben');ready()
     moved=draft()[1];assert moved['pages'][moved['selected']]['id']==last_id
     tap(description='Seitenoptionen');tap(text='Seitenränder bearbeiten');ready()
-    tap(description='Bearbeitung abbrechen');ready()
+    tap(description='Zurück');ready()
     before_delete=len(draft()[1]['pages'])
     tap(description='Seite 1 löschen');tap(text='Abbrechen');assert len(draft()[1]['pages'])==before_delete
     tap(description='Seite 1 löschen');tap(text='Seite löschen');ready();assert len(draft()[1]['pages'])==before_delete-1
-    capture();tap(text='Seite übernehmen');ready()
+    capture();tap(description='Seite übernehmen');ready()
     token,before=draft();count=len(before['pages']);assert count>=2
     screenshot(out,'page-strip.png')
+    print('Scanner: resume and PDF export',flush=True)
     adb('shell','am','force-stop',PACKAGE)
     adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity','-a','android.intent.action.MAIN')
     tap(description='PDF scannen');ready()
     assert draft()[0]==token and draft()[1]['pages']==before['pages']
     name='Kamera-Test-'+str(time.time_ns())
-    tap(text='PDF erstellen');adb('shell','input','text',name);tap(text='PDF erstellen')
+    tap(description='PDF erstellen');adb('shell','input','text',name);tap(text='PDF erstellen')
     wait_hierarchy(lambda ns:any(n.get('resource-id')==PACKAGE+':id/page_indicator' and n.get('text','').endswith(f' / {count}') for n in ns))
     docs=records();doc=next(d for d in docs if d['name']==name+'.pdf')
     assert doc['pageCount']==count,doc

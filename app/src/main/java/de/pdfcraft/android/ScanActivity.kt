@@ -47,6 +47,10 @@ class ScanActivity : ComponentActivity() {
     private var cropMode = ScanColorMode.COLOR
     private var cropTone=ScanTonePreset.ORIGINAL
     private var autoNext=false
+    private var cropFromCamera=true
+    private var cropTurnsOverride:Int?=null
+    private var showFilterAfterPreview=false
+    private var queuedImage:android.net.Uri?=null
     private lateinit var toneRail:LinearLayout
     private lateinit var toneScroll:ScrollView
     private var nextPhotoAfterPreview=false
@@ -72,9 +76,31 @@ class ScanActivity : ComponentActivity() {
         pending = null
         val file = local(path)
         if (success && file.length() > 0) {
-            cropRaw = path; editId = null; cropCorners = ScanCropView.defaultCorners()
+            cropRaw = path; editId = null; cropCorners = ScanCropView.defaultCorners();cropFromCamera=true;cropTurnsOverride=null
             saveDraft(); refresh(); loadPreview()
         } else { file.delete(); saveDraft(); refresh(); loadPreview() }
+    }
+    private val imagePicker=registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) { queuedImage=uri;saveDraft();consumeSelectedImage() }
+    }
+    private fun consumeSelectedImage() {
+        if(busy || disposed) return
+        val uri=queuedImage ?: return
+        queuedImage=null;saveDraft();importImage(uri)
+    }
+    private fun pickImage() {
+        if(pages.size>=MAX_PAGES) { message(R.string.scan_limit);return }
+        withCropConfirmation { runCatching { imagePicker.launch(arrayOf("image/*")) }.onFailure { message(R.string.scan_image_error) } }
+    }
+    private fun importImage(uri:android.net.Uri) {
+        val file=local("${UUID.randomUUID()}.img")
+        val cancel=AtomicBoolean(false)
+        work(R.string.scan_busy,R.string.scan_image_error,{
+            ScanImageImport.copy(this,uri,file) { cancel.get() };file
+        },cancel,onAbandoned={ it.delete() }) {
+            cropRaw=it.name;editId=null;cropCorners=ScanCropView.defaultCorners();cropFromCamera=false;cropTurnsOverride=null
+            saveDraft();refresh();loadPreview()
+        }
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -109,7 +135,7 @@ class ScanActivity : ComponentActivity() {
                 if (busy) cancelWork() else if (cropRaw != null) cancelCrop() else confirmDiscard()
             }
         })
-        refresh(); loadPreview()
+        refresh(); loadPreview();consumeSelectedImage()
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
@@ -140,6 +166,7 @@ class ScanActivity : ComponentActivity() {
         toolbar.addView(TextView(this).apply { setText(R.string.scan_title); textSize = 20f; setTextColor(colors.ink);gravity=Gravity.CENTER_VERTICAL },
             LinearLayout.LayoutParams(0, dp(56), 1f))
         toolbar.addView(icon("camera", R.string.scan_take_photo) { takePhoto() }.apply { id = R.id.scan_take_photo_button })
+        toolbar.addView(icon("image",R.string.scan_choose_image) { pickImage() }.apply { id=R.id.scan_choose_image_button })
         more = icon("more", R.string.scan_page_actions) { showMenu() }
         toolbar.addView(more)
         body.addView(toolbar)
@@ -206,17 +233,67 @@ class ScanActivity : ComponentActivity() {
         empty.visibility = if (cropRaw == null && pages.isEmpty()) View.VISIBLE else View.GONE
         actions.removeAllViews()
         if (cropRaw != null) {
-            actions.addView(icon("close",R.string.scan_cancel_crop) { cancelCrop() })
-            val modeId = when (cropMode) { ScanColorMode.COLOR -> R.string.scan_color; ScanColorMode.GRAYSCALE -> R.string.scan_grayscale; ScanColorMode.DOCUMENT -> R.string.scan_document }
-            actions.addView(button(modeId) { chooseMode() }.apply { maxWidth=dp(104);maxLines=2;textSize=14f })
-            actions.addView(button(R.string.scan_accept) { acceptCrop() }.apply { id = R.id.scan_accept_button;maxLines=2;textSize=14f })
+            addPageActions(true)
+        } else if(pages.isNotEmpty()) {
+            addPageActions(false)
         } else {
             actions.addView(button(R.string.scan_take_photo) { takePhoto() })
-            actions.addView(button(R.string.scan_export) { export() }.apply { id = R.id.scan_export_button; isEnabled = pages.isNotEmpty() })
+            actions.addView(button(R.string.scan_choose_image) { pickImage() })
         }
         pageStrip.bind(pages.map { ScanStripPage(it.id,local(it.thumb)) },selected,!busy,
             onSelect={ index -> withCropConfirmation { selected=index;saveDraft();refresh();loadPreview() } },
             onDelete={ index -> confirmDeletePage(index) },onMove={ from,to -> withCropConfirmation { movePage(from,to) } })
+    }
+    private fun addPageActions(editing:Boolean) {
+        fun action(key:String,label:Int,description:Int,viewId:Int=View.NO_ID,primary:Boolean=false,run:()->Unit) {
+            val cell=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(2),dp(6),dp(2),dp(6))
+                id=viewId;contentDescription=text(description);isFocusable=true;setOnClickListener { if(!busy) run() }
+                addView(ImageView(this@ScanActivity).apply {
+                    setPadding(dp(12),dp(12),dp(12),dp(12))
+                    setImageDrawable(MaterialSymbols.drawable(this@ScanActivity,key,if(primary) android.graphics.Color.WHITE else colors.accent))
+                    background=GradientDrawable().apply { setColor(if(primary) this@ScanActivity.colors.accent else this@ScanActivity.colors.tint);cornerRadius=dp(24).toFloat() }
+                    importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },LinearLayout.LayoutParams(dp(48),dp(48)))
+                addView(TextView(this@ScanActivity).apply { setText(label);textSize=11f;setTextColor(colors.ink);gravity=Gravity.CENTER;maxLines=2;importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+            }
+            actions.addView(cell,LinearLayout.LayoutParams(0,dp(82),1f))
+        }
+        action("rotate",R.string.scan_action_rotate,R.string.scan_rotate) { if(editing) rotateCrop() else rotateSelected() }
+        action("scan_filter",R.string.scan_action_filter,R.string.scan_action_filter) {
+            if(editing) chooseMode() else { showFilterAfterPreview=true;editSelected() }
+        }
+        action("crop",R.string.scan_action_adjust,R.string.scan_edit_page) { if(!editing) editSelected() else crop.requestFocus() }
+        action("delete",R.string.scan_action_delete,R.string.scan_delete_page) {
+            if(editing && editId==null) AlertDialog.Builder(this).setTitle(R.string.scan_delete_page).setMessage(R.string.scan_delete_confirm)
+                .setNegativeButton(R.string.scan_cancel,null).setPositiveButton(R.string.scan_delete_page) { _,_ -> cancelCrop() }.show()
+            else confirmDeletePage(selected)
+        }
+        action("check",R.string.scan_action_done,if(editing) R.string.scan_accept else R.string.scan_export,
+            if(editing) R.id.scan_accept_button else R.id.scan_export_button,true) { if(editing) acceptCrop() else export() }
+    }
+    private fun rotateSelected() {
+        val p=pages.getOrNull(selected) ?: return
+        processPage(p.raw,p.id,p.corners,p.mode,(p.turns+1)%4,p.tone)
+    }
+    private fun rotateCrop() {
+        val raw=cropRaw ?: return
+        val turns=((cropTurnsOverride ?: pages.find { it.id==editId }?.turns ?: 0)+1)%4
+        val corners=cropCorners.map { PointF(it.x,it.y) }
+        val output=local("${UUID.randomUUID()}.jpg")
+        work(R.string.scan_busy,R.string.scan_error,{
+            val source=ScanProcessing.loadPhoto(local(raw));var rotated:Bitmap?=null
+            try {
+                rotated=if(turns==0) source else Bitmap.createBitmap(source,0,0,source.width,source.height,Matrix().apply { postRotate(turns*90f) },true)
+                output.outputStream().use { check(rotated.compress(Bitmap.CompressFormat.JPEG,95,it)) }
+                var points=corners
+                repeat(turns) { points=listOf(points[3],points[0],points[1],points[2]).map { PointF(1f-it.y,it.x) } }
+                points
+            } catch(error:Throwable) { output.delete();throw error }
+            finally { if(rotated!==source) rotated?.recycle();source.recycle() }
+        },onAbandoned={ output.delete() }) {
+            cropRaw=output.name;cropCorners=it;cropTurnsOverride=0;saveDraft();refresh();loadPreview()
+        }
     }
 
     private fun chooseMode() {
@@ -237,7 +314,7 @@ class ScanActivity : ComponentActivity() {
         popup.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.string.scan_edit_page -> editSelected()
-                R.string.scan_rotate -> { val p = pages[selected]; processPage(p.raw, p.id, p.corners, p.mode, (p.turns + 1) % 4,p.tone) }
+                R.string.scan_rotate -> rotateSelected()
                 R.string.scan_delete_page -> confirmDeletePage(selected)
                 R.string.scan_move_left -> move(-1)
                 R.string.scan_move_right -> move(1)
@@ -273,11 +350,13 @@ class ScanActivity : ComponentActivity() {
     private fun editSelected() {
         val page = pages.getOrNull(selected) ?: return
         cropRaw = page.raw; editId = page.id; cropCorners = page.corners.map { PointF(it.x, it.y) }; cropMode = page.mode;cropTone=page.tone
+        cropTurnsOverride=null
         saveDraft(); refresh(); loadPreview()
     }
 
     private fun cancelCrop() {
         cropRaw = null; editId = null
+        showFilterAfterPreview=false;cropTurnsOverride=null
         saveDraft(); refresh(); loadPreview()
     }
 
@@ -314,6 +393,7 @@ class ScanActivity : ComponentActivity() {
         crop.setPhoto(null, corners)
         work(R.string.scan_busy, R.string.scan_error, { ScanProcessing.loadPhoto(file, 2200) }) {
             crop.setPhoto(it, if (raw != null) corners else ScanCropView.defaultCorners())
+            if(showFilterAfterPreview && raw!=null) { showFilterAfterPreview=false;chooseMode() }
             if(nextPhotoAfterPreview && raw==null) { nextPhotoAfterPreview=false;takePhoto() }
         }
     }
@@ -321,7 +401,7 @@ class ScanActivity : ComponentActivity() {
     private fun acceptCrop() {
         val raw = cropRaw ?: return
         if (editId == null && pages.size >= MAX_PAGES) { message(R.string.scan_limit); return }
-        val turns = pages.find { it.id == editId }?.turns ?: 0
+        val turns = cropTurnsOverride ?: pages.find { it.id == editId }?.turns ?: 0
         processPage(raw, editId, cropCorners.map { PointF(it.x, it.y) }, cropMode, turns,cropTone)
     }
 
@@ -352,7 +432,7 @@ class ScanActivity : ComponentActivity() {
             val index = pages.indexOfFirst { it.id == id }
             if (index >= 0) { pages[index] = page; selected = index } else { pages.add(page); selected = pages.lastIndex }
             cropRaw = null; editId = null; saveDraft(); refresh(); loadPreview()
-            if(existingId==null && autoNext && pages.size<MAX_PAGES) nextPhotoAfterPreview=true
+            if(existingId==null && autoNext && cropFromCamera && pages.size<MAX_PAGES) nextPhotoAfterPreview=true
         }
     }
 
@@ -409,8 +489,9 @@ class ScanActivity : ComponentActivity() {
                 }
                 busy = false; overlay.visibility = View.GONE
                 if (cancel.get()) result.getOrNull()?.let(onAbandoned)
-                else result.fold(done) { nextPhotoAfterPreview=false;message(error) }
+                else result.fold(done) { nextPhotoAfterPreview=false;showFilterAfterPreview=false;message(error) }
                 if (previewReload && !busy) loadPreview()
+                if(!busy) consumeSelectedImage()
             }
         } } catch (_: java.util.concurrent.RejectedExecutionException) {
             busy = false; overlay.visibility = View.GONE; message(error)
@@ -421,6 +502,7 @@ class ScanActivity : ComponentActivity() {
         // Keep the overlay until the bounded worker returns; no overlapping writes or queued operations.
         cancellation.set(true)
         nextPhotoAfterPreview=false
+        showFilterAfterPreview=false
         progressLabel.setText(R.string.scan_cancel)
     }
 
@@ -453,6 +535,8 @@ class ScanActivity : ComponentActivity() {
         if (disposed) return
         val json = JSONObject().put("name", exportName).put("selected", selected).put("pending", pending)
             .put("crop", cropRaw).put("edit", editId).put("corners", encodeCorners(cropCorners)).put("mode", cropMode.name).put("tone",cropTone.name)
+            .put("from_camera",cropFromCamera).put("crop_turns",cropTurnsOverride)
+            .put("queued_image",queuedImage?.toString())
             .put("pages", JSONArray().apply { pages.forEach { p -> put(JSONObject().put("id", p.id).put("raw", p.raw)
                 .put("image", p.image).put("thumb", p.thumb).put("corners", encodeCorners(p.corners)).put("mode", p.mode.name).put("turns", p.turns).put("tone",p.tone.name)) } })
         val atomic = AtomicFile(local("session.json"))
@@ -477,6 +561,8 @@ class ScanActivity : ComponentActivity() {
             editId = json.optString("edit").takeIf { id -> pages.any { it.id == id } }
             cropCorners = decodeCorners(json.getJSONArray("corners")); cropMode = ScanColorMode.valueOf(json.getString("mode"))
             cropTone=ScanTonePreset.valueOf(json.optString("tone","ORIGINAL"))
+            cropFromCamera=json.optBoolean("from_camera",true);cropTurnsOverride=if(json.has("crop_turns")) json.getInt("crop_turns").coerceIn(0,3) else null
+            queuedImage=json.optString("queued_image").takeIf { it.isNotBlank() }?.let(android.net.Uri::parse)
         } catch (_: Exception) { /* A new draft or a interrupted state write; AtomicFile retains its last complete version. */ }
     }
 
@@ -493,7 +579,7 @@ class ScanActivity : ComponentActivity() {
         pending = null
         val file = local(path)
         if (file.length() > 0) {
-            cropRaw = path; editId = null; cropCorners = ScanCropView.defaultCorners()
+            cropRaw = path; editId = null; cropCorners = ScanCropView.defaultCorners();cropFromCamera=true;cropTurnsOverride=null
         } else file.delete()
         saveDraft(); refresh(); loadPreview()
     }

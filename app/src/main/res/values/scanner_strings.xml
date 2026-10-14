@@ -1,4 +1,11 @@
 <resources>
+    <string name="scan_choose_image">Choose image</string>
+    <string name="scan_image_error">Could not open this image. Please choose a supported image of up to 64 MiB.</string>
+    <string name="scan_action_rotate">Rotate</string>
+    <string name="scan_action_filter">Filter</string>
+    <string name="scan_action_adjust">Adjust</string>
+    <string name="scan_action_delete">Delete</string>
+    <string name="scan_action_done">Done</string>
     <string name="scan_discard_edit_title">Discard this edit?</string>
     <string name="scan_discard_edit_message">Unsaved changes to this photo will be discarded. Pages already added to the scan are kept.</string>
     <string name="scan_tone_original">Original</string>
@@ -23,7 +30,7 @@
     <string name="scan_color">Color</string>
     <string name="scan_grayscale">Grayscale</string>
     <string name="scan_document">Document contrast</string>
-    <string name="scan_empty">Photograph a page. Adjust its four corners, then add the next page. Everything is processed locally.</string>
+    <string name="scan_empty">Photograph a page or choose an image. Adjust its four corners, then add the next page. Everything is processed locally.</string>
     <string name="scan_adjust_corners">Drag the four corners to the edges of the document.</string>
     <string name="scan_name">PDF file name</string>
     <string name="scan_busy">Processing image…</string>

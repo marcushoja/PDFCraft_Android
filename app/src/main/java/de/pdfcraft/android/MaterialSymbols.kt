@@ -11,6 +11,9 @@ import androidx.core.graphics.PathParser
 /** Local Material Symbols paths fetched through Iconify. Apache-2.0, Google. */
 object MaterialSymbols {
     private val paths = mapOf(
+        "image" to "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2M5 5h14v14H5zm1 12h12l-4-5-3 4-2-3zM8 6a2 2 0 1 0 0 4a2 2 0 0 0 0-4",
+        "check" to "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+        "scan_filter" to "M12 3a5 5 0 1 0 0 10a5 5 0 0 0 0-10M8 10a5 5 0 1 0 0 10a5 5 0 0 0 0-10M16 10a5 5 0 1 0 0 10a5 5 0 0 0 0-10",
         "menu" to "M4 18q-.425 0-.712-.288T3 17t.288-.712T4 16h16q.425 0 .713.288T21 17t-.288.713T20 18zm0-5q-.425 0-.712-.288T3 12t.288-.712T4 11h16q.425 0 .713.288T21 12t-.288.713T20 13zm0-5q-.425 0-.712-.288T3 7t.288-.712T4 6h16q.425 0 .713.288T21 7t-.288.713T20 8z",
         "search" to "M9.5 16q-2.725 0-4.612-1.888T3 9.5t1.888-4.612T9.5 3t4.613 1.888T16 9.5q0 1.1-.35 2.075T14.7 13.3l5.6 5.6q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-5.6-5.6q-.75.6-1.725.95T9.5 16m0-2q1.875 0 3.188-1.312T14 9.5t-1.312-3.187T9.5 5T6.313 6.313T5 9.5t1.313 3.188T9.5 14",
         "back" to "m10.8 12l3.9 3.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-4.6-4.6q-.15-.15-.212-.325T8.425 12t.063-.375t.212-.325l4.6-4.6q.275-.275.7-.275t.7.275t.275.7t-.275.7z",
@@ -33,7 +36,13 @@ object MaterialSymbols {
             override fun draw(canvas: Canvas) {
                 canvas.save(); canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
                 canvas.scale(bounds.width() / 24f, bounds.height() / 24f)
-                canvas.drawPath(path, paint); canvas.restore()
+                if(key=="scan_filter") {
+                    val alpha=paint.alpha
+                    paint.alpha=alpha*120/255;canvas.drawCircle(12f,8f,5f,paint)
+                    paint.alpha=alpha*180/255;canvas.drawCircle(16f,15f,5f,paint)
+                    paint.alpha=alpha;canvas.drawCircle(8f,15f,5f,paint)
+                } else canvas.drawPath(path, paint)
+                canvas.restore()
             }
             override fun getIntrinsicWidth() = size
             override fun getIntrinsicHeight() = size

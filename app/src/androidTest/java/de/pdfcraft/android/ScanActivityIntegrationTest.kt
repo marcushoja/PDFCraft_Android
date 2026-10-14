@@ -6,6 +6,9 @@ import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.widget.LinearLayout
+import android.view.View
+import android.view.ViewGroup
+import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.core.content.FileProvider
@@ -17,6 +20,39 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ScanActivityIntegrationTest {
+    private fun descendants(view:View):List<View> = listOf(view)+if(view is ViewGroup)
+        (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+    @Test fun selectedImageUsesIconEditorAndCanRotateWithoutOpeningCameraAutomatically() {
+        val prefs=context.getSharedPreferences("scanner_draft",0);val old=prefs.getString("session",null)
+        val settings=context.getSharedPreferences("scanner_settings",0);val oldAuto=settings.all["auto_next"]
+        prefs.edit().remove("session").commit();settings.edit().putBoolean("auto_next",true).commit()
+        val source=File.createTempFile("picked-image-",".jpg",context.cacheDir)
+        val bitmap=Bitmap.createBitmap(120,180,Bitmap.Config.ARGB_8888).apply { eraseColor(Color.CYAN) }
+        source.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG,95,it) };bitmap.recycle()
+        val original=source.readBytes();val activity=launch();val session=field(activity,"session") as File
+        try {
+            i.runOnMainSync {
+                ScanActivity::class.java.getDeclaredMethod("importImage",Uri::class.java).apply { isAccessible=true }.invoke(activity,Uri.fromFile(source))
+            };idle(activity)
+            assertEquals(false,field(activity,"cropFromCamera"))
+            i.runOnMainSync {
+                val labels=listOf(R.string.scan_rotate,R.string.scan_action_filter,R.string.scan_edit_page,R.string.scan_delete_page,R.string.scan_accept)
+                labels.forEach { label -> assertEquals(1,descendants(activity.window.decorView).count { it.contentDescription==activity.getString(label) }) }
+                descendants(activity.window.decorView).single { it.contentDescription==activity.getString(R.string.scan_rotate) }.performClick()
+            };idle(activity)
+            ScanProcessing.loadPhoto(File(session,field(activity,"cropRaw") as String)).also {
+                assertEquals(180,it.width);assertEquals(120,it.height)
+            }.recycle()
+            i.runOnMainSync { activity.findViewById<View>(R.id.scan_accept_button).performClick() };idle(activity)
+            assertNull(field(activity,"pending"));assertNull(field(activity,"cropRaw"))
+            i.runOnMainSync { assertEquals(1,activity.findViewById<LinearLayout>(R.id.scan_strip).childCount) }
+            assertArrayEquals(original,source.readBytes())
+        } finally {
+            i.runOnMainSync { activity.finish() };i.waitForIdleSync();ScanActivity.clearImportedDraft(context,session.name);source.delete()
+            if(old==null) prefs.edit().remove("session").commit() else prefs.edit().putString("session",old).commit()
+            if(oldAuto==null) settings.edit().remove("auto_next").commit() else settings.edit().putBoolean("auto_next",oldAuto as Boolean).commit()
+        }
+    }
     private val i=InstrumentationRegistry.getInstrumentation()
     private val context get()=i.targetContext
     private fun field(activity:ScanActivity,name:String)=ScanActivity::class.java.getDeclaredField(name).apply { isAccessible=true }.get(activity)

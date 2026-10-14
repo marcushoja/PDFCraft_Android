@@ -20,9 +20,19 @@ class ScanCropView(context: Context) : View(context) {
     private var dragging = -1
     var onCornersChanged: ((List<PointF>) -> Unit)? = null
     var editable = true
-        set(value) { field = value; invalidate() }
+        set(value) { field = value; if (!value) finishDrag(); invalidate() }
     var accentColor = ZenColors.light.accent
     private val density = resources.displayMetrics.density
+    private var fingerX = 0f
+    private var fingerY = 0f
+    private val loupeRect = RectF()
+    private val zoomRect = RectF()
+    private val loupeClip = Path()
+    private val loupePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        setShadowLayer(6f * density, 0f, 2f * density, 0x55000000)
+    }
 
     init {
         contentDescription = context.getString(R.string.scan_adjust_corners)
@@ -31,6 +41,7 @@ class ScanCropView(context: Context) : View(context) {
     }
 
     fun setPhoto(bitmap: Bitmap?, corners: List<PointF> = defaultCorners()) {
+        finishDrag()
         photo = bitmap
         points = corners.map { PointF(it.x, it.y) }
         updateRect()
@@ -38,6 +49,77 @@ class ScanCropView(context: Context) : View(context) {
     }
 
     fun corners(): List<PointF> = points.map { PointF(it.x, it.y) }
+
+    /** A defensive snapshot for gesture/rendering tests. */
+    internal fun magnifierBounds(): RectF? = if (updateMagnifierBounds()) RectF(loupeRect) else null
+
+    private fun updateMagnifierBounds(): Boolean {
+        if (!editable || photo == null || dragging !in points.indices || width <= 0 || height <= 0) return false
+        val margin = min(12f * density, min(width, height) / 8f)
+        val diameter = min(112f * density, min(width, height) - 2f * margin)
+        val active = points[dragging]
+        val activeX = imageRect.left + active.x * imageRect.width()
+        val activeY = imageRect.top + active.y * imageRect.height()
+        var bestDistance = -1f
+        for (corner in 0..3) {
+            val left = if (corner % 2 == 0) margin else width - margin - diameter
+            val top = if (corner < 2) margin else height - margin - diameter
+            // Distance to the circle's bounding box avoids covering either the finger or the
+            // accepted corner, even when an invalid move leaves them far apart.
+            fun distance(x: Float, y: Float): Float = hypot(
+                x - x.coerceIn(left, left + diameter), y - y.coerceIn(top, top + diameter))
+            val distance = min(distance(activeX, activeY), distance(fingerX, fingerY))
+            if (distance > bestDistance) {
+                bestDistance = distance
+                loupeRect.set(left, top, left + diameter, top + diameter)
+            }
+        }
+        return true
+    }
+
+    private fun drawMagnifier(canvas: Canvas, bitmap: Bitmap) {
+        if (!updateMagnifierBounds()) return
+        val cx = loupeRect.centerX()
+        val cy = loupeRect.centerY()
+        val radius = loupeRect.width() / 2f
+        canvas.drawCircle(cx, cy, radius, shadowPaint)
+        loupeClip.rewind()
+        loupeClip.addCircle(cx, cy, radius, Path.Direction.CW)
+        val saved = canvas.save()
+        canvas.clipPath(loupeClip)
+        canvas.drawColor(Color.WHITE)
+        val active = points[dragging]
+        // Enlarge the displayed photo, not a fitted thumbnail of the entire source.
+        val zoomWidth = imageRect.width() * 3f
+        val zoomHeight = imageRect.height() * 3f
+        zoomRect.set(cx - active.x * zoomWidth, cy - active.y * zoomHeight,
+            cx + (1f - active.x) * zoomWidth, cy + (1f - active.y) * zoomHeight)
+        loupePaint.style = Paint.Style.FILL
+        loupePaint.colorFilter = appearance
+        canvas.drawBitmap(bitmap, null, zoomRect, loupePaint)
+        loupePaint.colorFilter = null
+        loupePaint.color = accentColor
+        loupePaint.strokeWidth = 1.5f * density
+        val arm = min(10f * density, radius / 3f)
+        canvas.drawLine(cx - arm, cy, cx + arm, cy, loupePaint)
+        canvas.drawLine(cx, cy - arm, cx, cy + arm, loupePaint)
+        canvas.drawCircle(cx, cy, min(2f * density, arm / 2f), loupePaint)
+        canvas.restoreToCount(saved)
+        loupePaint.style = Paint.Style.STROKE
+        loupePaint.strokeWidth = 2f * density
+        canvas.drawCircle(cx, cy, (radius - density).coerceAtLeast(0f), loupePaint)
+    }
+
+    private fun finishDrag() {
+        dragging = -1
+        parent?.requestDisallowInterceptTouchEvent(false)
+        invalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        finishDrag()
+        super.onDetachedFromWindow()
+    }
 
     private fun updateRect() {
         val bitmap = photo ?: return
@@ -83,6 +165,7 @@ class ScanCropView(context: Context) : View(context) {
             paint.color = accentColor
             canvas.drawCircle(x, y, 7f * density, paint)
         }
+        drawMagnifier(canvas, bitmap)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -99,26 +182,36 @@ class ScanCropView(context: Context) : View(context) {
                         event.y - imageRect.top - p.y * imageRect.height()) > 36f * density) {
                     dragging = -1; return false
                 }
+                fingerX = event.x
+                fingerY = event.y
                 parent?.requestDisallowInterceptTouchEvent(true)
+                invalidate()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 if (dragging < 0) return false
-                val candidate = corners().toMutableList()
-                candidate[dragging] = PointF(((event.x - imageRect.left) / imageRect.width()).coerceIn(0f, 1f),
-                    ((event.y - imageRect.top) / imageRect.height()).coerceIn(0f, 1f))
-                if (validCorners(candidate)) { points = candidate; invalidate(); onCornersChanged?.invoke(corners()) }
+                fingerX = event.x
+                fingerY = event.y
+                updateDraggedCorner(event.x,event.y)
+                invalidate()
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (dragging < 0) return false
-                dragging = -1
-                parent?.requestDisallowInterceptTouchEvent(false)
+                // Android may coalesce MOVE events while the magnifier is being rendered.
+                if(event.actionMasked==MotionEvent.ACTION_UP) updateDraggedCorner(event.x,event.y)
+                finishDrag()
                 if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
                 return true
             }
         }
         return false
+    }
+    private fun updateDraggedCorner(x:Float,y:Float) {
+        val candidate=corners().toMutableList()
+        candidate[dragging]=PointF(((x-imageRect.left)/imageRect.width()).coerceIn(0f,1f),
+            ((y-imageRect.top)/imageRect.height()).coerceIn(0f,1f))
+        if(validCorners(candidate)) { points=candidate;onCornersChanged?.invoke(corners()) }
     }
 
     override fun performClick(): Boolean { super.performClick(); return true }

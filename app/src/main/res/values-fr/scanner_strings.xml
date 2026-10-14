@@ -1,4 +1,11 @@
 <resources>
+    <string name="scan_choose_image">Choisir une image</string>
+    <string name="scan_image_error">Impossible d’ouvrir cette image. Choisissez une image compatible de 64 Mio maximum.</string>
+    <string name="scan_action_rotate">Tourner</string>
+    <string name="scan_action_filter">Filtre</string>
+    <string name="scan_action_adjust">Ajuster</string>
+    <string name="scan_action_delete">Supprimer</string>
+    <string name="scan_action_done">Terminé</string>
     <string name="scan_discard_edit_title">Abandonner cette modification ?</string>
     <string name="scan_discard_edit_message">Les modifications non enregistrées de cette photo seront abandonnées. Les pages déjà ajoutées sont conservées.</string>
     <string name="scan_tone_original">Original</string>
@@ -23,7 +30,7 @@
     <string name="scan_color">Couleur</string>
     <string name="scan_grayscale">Niveaux de gris</string>
     <string name="scan_document">Contraste document</string>
-    <string name="scan_empty">Photographiez une page. Ajustez ses quatre coins, puis ajoutez la page suivante. Tout est traité localement.</string>
+    <string name="scan_empty">Photographiez une page ou choisissez une image. Ajustez ses quatre coins, puis ajoutez la page suivante. Tout est traité localement.</string>
     <string name="scan_adjust_corners">Faites glisser les quatre coins vers les bords du document.</string>
     <string name="scan_name">Nom du fichier PDF</string>
     <string name="scan_busy">Traitement de l’image…</string>

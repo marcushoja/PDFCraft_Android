@@ -1,4 +1,5 @@
 <resources>
+    <item name="scan_choose_image_button" type="id" />
     <item name="scan_auto_next" type="id" />
     <item name="scan_tone_presets" type="id" />
     <item name="scan_crop" type="id" />

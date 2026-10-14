@@ -20,7 +20,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 - Debug-APK und Instrumentation-APK gebaut.
 - 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 102 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
+- 110 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -67,6 +67,14 @@ seitenbezogene Löschaktionen und die Reihenfolgenauflösung beim Ziehen.
 Eckpunkt-Ziehen, Presets, automatische Folgeaufnahme mit beibehaltenem Preset,
 Drag-and-drop, X-Löschbestätigung, Drehen/Bearbeiten, Prozessneustart und die
 mehrseitige benannte PDF in der Bibliothek einschließlich Entwurfsbereinigung.
+
+`ScanImageImportIntegrationTest` prüft private JPEG-/PNG-Kopien ohne Veränderung der
+Originale, ungültige Bilder, Abbruch und Schutz vorhandener Zieldateien. Zusätzliche
+Crop-Tests prüfen echte lokale Pixelvergrößerung in der Lupe, Fadenkreuz, Presets,
+Bildränder, kleine Ansichten und zusammengefasste Touch-Ereignisse beim Loslassen.
+`tools/scanner_gallery_smoke_test.py` prüft die echte Android-Bildauswahl, Icon-Leiste,
+Drehen vor dem Übernehmen, unveränderte Quelldatei und PDF-Export. Bildauswahl löst
+auch bei aktivierter Folgeaufnahme keine unerwartete Kameraaufnahme aus.
 
 ## Große Bild-PDFs
 
