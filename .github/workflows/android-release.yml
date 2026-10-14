@@ -22,23 +22,34 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Restore fixed signing key
+        env:
+          PDFCRAFT_SIGNING_BUNDLE: ${{ secrets.PDFCRAFT_SIGNING_BUNDLE }}
+        run: python3 tools/prepare_signing.py --restore "$RUNNER_TEMP/pdfcraft-signing/key.p12"
       - name: Install Android SDK
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
       - uses: gradle/actions/setup-gradle@v4
-      # Reuse the same developer signing key so preview updates remain installable.
-      - name: Restore preview signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: pdfcraft-preview-signing-v1
       - name: Build and validate
         env:
           BUILD_NUMBER: ${{ github.run_number }}
-        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
+          PDFCRAFT_SIGNING_REQUIRED: 'true'
+        run: |
+          python3 -m unittest discover -s tools -p 'test_prepare_signing.py'
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
       - name: Prepare APK
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/PDFCraft.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs dist/PDFCraft.apk > "$RUNNER_TEMP/apk-certificate.txt"
+          python3 - <<'PY'
+          import os, pathlib, re
+          report = pathlib.Path(os.environ['RUNNER_TEMP'], 'apk-certificate.txt').read_text()
+          expected = pathlib.Path('config/signing-certificate.sha256').read_text().strip()
+          actual = re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-f]+)', report)
+          if actual != [expected]:
+              raise SystemExit('APK certificate mismatch: refusing to publish.')
+          PY
+          cp config/signing-certificate.sha256 dist/SIGNING_CERT_SHA256.txt
           cd dist
           sha256sum PDFCraft.apk > SHA256SUMS.txt
       - name: Publish current build in Releases
@@ -48,7 +59,7 @@ jobs:
           COMMIT: ${{ github.sha }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$TAG" dist/PDFCraft.apk dist/SHA256SUMS.txt \
+          gh release create "$TAG" dist/PDFCraft.apk dist/SHA256SUMS.txt dist/SIGNING_CERT_SHA256.txt \
             --target "$COMMIT" --latest \
             --title "PDFCraft Android · Build ${{ github.run_number }}" \
             --notes "Automatisch gebauter, entwicklersignierter Reader für Android 8.0+. Quellstand: $COMMIT. Unit-Tests und Android Lint erfolgreich. APK herunterladen und auf dem Smartphone installieren. Noch keine vollständige PdfCraft-Portierung."
@@ -58,3 +69,6 @@ jobs:
         with:
           name: validation-reports
           path: app/build/reports/
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pdfcraft-signing/key.p12"

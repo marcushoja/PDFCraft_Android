@@ -5,6 +5,9 @@ local.properties
 *.iml
 *.jks
 *.keystore
+*.p12
+*.pfx
 .kotlin/
 __pycache__/
 *.pyc
+.signing-private/

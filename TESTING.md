@@ -1,5 +1,20 @@
 # Prüfstand · 13. Oktober 2026
 
+## Feste APK-Signierung · 14. Oktober 2026
+
+`python3 -m unittest discover -s tools -p 'test_prepare_signing.py' -v`
+prüft mit einem wegwerfbaren Testschlüssel sechs Fälle: wiederholte Wiederherstellung,
+fehlendes/ungültiges Secret, falsches Zertifikat, unerlaubte Umgebungsvariablen-Injektion
+und Schutz vorhandener Schlüsseldateien.
+
+Zwei echte App-Builds mit Versionscodes 10 und 11 wurden lokal signiert und mit
+`apksigner verify --print-certs` gegen den festgelegten öffentlichen Fingerabdruck
+geprüft. Zusätzlich wurde auf API 37 eine separate, gleich signierte Test-App von
+Version 1 auf 2 aktualisiert; ihre private Testdatei blieb dabei erhalten. Die
+vorhandene PDFCraft-Installation musste für diesen Update-Test nicht gelöscht werden.
+
+Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
+
 ## Automatisch erfolgreich
 
 - Debug-APK und Instrumentation-APK gebaut.

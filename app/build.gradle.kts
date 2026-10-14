@@ -16,6 +16,19 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    val signingStore = providers.environmentVariable("PDFCRAFT_SIGNING_STORE_FILE").orNull
+    check(providers.environmentVariable("PDFCRAFT_SIGNING_REQUIRED").orNull != "true" || !signingStore.isNullOrBlank()) {
+        "The fixed PDFCraft signing key is required; refusing to generate a replacement."
+    }
+    if (!signingStore.isNullOrBlank()) {
+        signingConfigs.getByName("debug") {
+            storeFile = file(signingStore)
+            storePassword = providers.environmentVariable("PDFCRAFT_SIGNING_STORE_PASSWORD").get()
+            keyAlias = providers.environmentVariable("PDFCRAFT_SIGNING_ALIAS").get()
+            keyPassword = providers.environmentVariable("PDFCRAFT_SIGNING_KEY_PASSWORD").get()
+            storeType = "PKCS12"
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
