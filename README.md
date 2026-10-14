@@ -1,11 +1,6 @@
 # PDFCraft Android
 
-**APK-Updates ohne Deinstallation:** Einmalige Einrichtung des festen
-Signierschlüssels über ein GitHub-Secret: siehe [`SIGNING.md`](SIGNING.md).
-
-Eine native, smartphonegerechte PDF-Lese-App, inspiriert von [storytold/pdfcraft](https://github.com/storytold/pdfcraft). Eigenständige Android-Implementierung, keine offizielle ArtCraft-App und keine vollständige Portierung der Rust-Anwendung.
-
-**Von Marcus Hoja.** Die Oberfläche verbindet die kompakte Bedienung aus MJ PDF mit einem ruhigen Zen-Stil: Salbei, warmes Papier und Braun, lokale Material-Symbols-Icons und ein eigenes Buch-/Blatt-App-Icon.
+[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=000000)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
 ## APK herunterladen
 
