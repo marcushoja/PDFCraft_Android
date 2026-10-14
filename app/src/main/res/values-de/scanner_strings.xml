@@ -1,4 +1,5 @@
 <resources>
+    <string name="scan_action_accept">Übernehmen</string>
     <string name="scan_next">Weiter</string>
     <string name="scan_export_action">Exportieren</string>
     <string name="scan_black_white">Schwarz/Weiß</string>
@@ -33,7 +34,7 @@
     <string name="scan_color">Farbe</string>
     <string name="scan_grayscale">Graustufen</string>
     <string name="scan_document">Dokumentkontrast</string>
-    <string name="scan_empty">Tippe oben auf das Kamera-Symbol für ein Foto oder auf das Bild-Symbol für ein vorhandenes Bild. Ziehe die vier Ecken an die Dokumentränder. Mit Weiter fügst du die nächste Seite hinzu, mit Exportieren erstellst du deine PDF. Alles wird lokal verarbeitet.</string>
+    <string name="scan_empty">Tippe oben auf das Kamera-Symbol {camera} für ein Foto oder auf das Bild-Symbol {image} für ein vorhandenes Bild. Ziehe die vier Ecken an die Dokumentränder und übernimm die Seite mit {check}. Weitere Seiten fügst du über die Symbole oben hinzu. Mit Exportieren {scan_export} erstellst du deine PDF. Alles wird lokal verarbeitet.</string>
     <string name="scan_adjust_corners">Ziehe die vier Eckpunkte an die Dokumentränder.</string>
     <string name="scan_name">PDF-Dateiname</string>
     <string name="scan_busy">Bild wird verarbeitet…</string>

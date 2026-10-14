@@ -1,5 +1,5 @@
 """Real emulator camera → corner drag → page strip → resumed draft → library PDF."""
-import io,json,re,time,xml.etree.ElementTree as ET
+import io,json,re,time,os,xml.etree.ElementTree as ET
 from pathlib import Path
 from PIL import Image,ImageOps
 from smoke_test import adb,tap,hierarchy,wait_hierarchy,screenshot,records
@@ -28,10 +28,14 @@ def black_white(enabled):
     node=next(n for n in hierarchy().iter('node') if n.get('resource-id')==PACKAGE+':id/scan_black_white')
     if (node.get('selected')=='true')!=enabled:tap(text='Schwarz/Weiß')
 
-def next_camera_then_cancel():
-    tap(description='Weiter')
-    wait_hierarchy(lambda ns:any(n.get('content-desc')=='Shutter' for n in ns))
-    adb('shell','input','keyevent','4');ready()
+def grayscale(enabled):
+    node=next(n for n in hierarchy().iter('node') if n.get('resource-id')==PACKAGE+':id/scan_grayscale')
+    if (node.get('selected')=='true')!=enabled:tap(text='Graustufen')
+
+def accept_page():
+    tap(description='Seite übernehmen');ready()
+    assert not draft()[1].get('pending')
+    assert not draft()[1].get('crop')
 
 def drag_thumbnail_last_to_first():
     before=draft()[1]['pages']
@@ -69,6 +73,10 @@ def drag_corner():
 
 def main():
     out=Path('/tmp/opencode/pdfcraft-scanner');out.mkdir(parents=True,exist_ok=True)
+    # The API-31 emulator's stock camera can retain a broken capture session between runs.
+    # Isolate this test fixture only; never restart a real device's camera application.
+    if os.environ.get('ANDROID_SERIAL','').startswith('emulator-') and adb('shell','getprop','ro.build.version.sdk').strip()=='31':
+        adb('shell','am','force-stop','com.android.camera2')
     adb('shell','am','force-stop',PACKAGE)
     adb('shell','am','start','-W','-n',PACKAGE+'/.MainActivity','-a','android.intent.action.MAIN')
     tap(description='PDF scannen');ready()
@@ -76,12 +84,14 @@ def main():
         tap(description='Zurück');ready()
     assert not any(n.get('resource-id')==PACKAGE+':id/scan_auto_next' for n in hierarchy().iter('node'))
     print('Scanner: camera and corner magnifier',flush=True)
-    capture();tap(text='Heller');black_white(False)
+    capture();tap(text='Heller');black_white(False);grayscale(False)
     drag_corner();screenshot(out,'camera-corners.png')
-    tap(description='Weiter')
-    capture(already_open=True)
+    accept_page()
+    capture()
     assert draft()[1]['tone']=='BRIGHTER'
-    black_white(True);next_camera_then_cancel()
+    grayscale(True);assert draft()[1]['mode']=='GRAYSCALE'
+    black_white(True);assert draft()[1]['mode']=='DOCUMENT'
+    accept_page()
     print('Scanner: thumbnail actions',flush=True)
     drag_thumbnail_last_to_first()
     tap(description='Seitenoptionen');tap(text='Seite drehen');ready()
@@ -94,7 +104,7 @@ def main():
     before_delete=len(draft()[1]['pages'])
     tap(description='Seite 1 löschen');tap(text='Abbrechen');assert len(draft()[1]['pages'])==before_delete
     tap(description='Seite 1 löschen');tap(text='Seite löschen');ready();assert len(draft()[1]['pages'])==before_delete-1
-    capture();next_camera_then_cancel()
+    capture();accept_page()
     token,before=draft();count=len(before['pages']);assert count>=2
     screenshot(out,'page-strip.png')
     print('Scanner: resume and PDF export',flush=True)
@@ -109,6 +119,6 @@ def main():
     assert doc['pageCount']==count,doc
     assert adb('shell','run-as',PACKAGE,'ls','files/scanner-drafts').strip()==''
     screenshot(out,'exported-pdf.png')
-    print('PASS: real camera, top loupe, black/white toggle, explicit Next with retained preset, drag ordering, small-X confirmation, draft resume and separate Export')
+    print('PASS: real camera, top loupe, exclusive grayscale/black-white, check applies without new capture, manual toolbar capture, drag ordering, draft resume and Export')
 
 if __name__=='__main__':main()

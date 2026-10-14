@@ -20,7 +20,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 - Debug-APK und Instrumentation-APK gebaut.
 - 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 114 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
+- 115 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -64,7 +64,7 @@ persistierte Reihenfolge und Entwurfswiederherstellung. `ScanCropViewIntegration
 prüft die verschiebbaren Eckpunkte; `ScanPageStripIntegrationTest` prüft Auswahl,
 seitenbezogene Löschaktionen und die Reihenfolgenauflösung beim Ziehen.
 `tools/scanner_smoke_test.py` nutzt die tatsächliche Emulator-Kamera und prüft
-Eckpunkt-Ziehen, Presets, explizites Weiter zur Folgeaufnahme mit beibehaltenem Preset,
+Eckpunkt-Ziehen, Presets, Übernehmen per Haken ohne Folgeaufnahme und manuelles Hinzufügen über die oberen Icons,
 Drag-and-drop, X-Löschbestätigung, Drehen/Bearbeiten, Prozessneustart und die
 mehrseitige benannte PDF in der Bibliothek einschließlich Entwurfsbereinigung.
 
@@ -74,10 +74,13 @@ Crop-Tests prüfen echte lokale Pixelvergrößerung in der Lupe, Fadenkreuz, Pre
 Bildränder, kleine Ansichten und zusammengefasste Touch-Ereignisse beim Loslassen.
 `tools/scanner_gallery_smoke_test.py` prüft die echte Android-Bildauswahl, Icon-Leiste,
 Drehen vor dem Übernehmen, unveränderte Quelldatei und PDF-Export einschließlich
-noch bearbeiteter Seiten. Weiter nach der Bildauswahl öffnet wieder die Bildauswahl,
-nicht die Kamera. Zusätzliche Tests prüfen die stets obere Lupe bei allen vier Ecken,
-den Schwarz/Weiß-Schalter, kleinere X-Symbole mit unverändertem Touchziel, den
+noch bearbeiteter Seiten. Übernehmen öffnet weder die Bildauswahl noch die Kamera.
+Zusätzliche Tests prüfen die stets obere Lupe bei allen vier Ecken,
+gegenseitig ausschließende Graustufen-/Schwarz/Weiß-Schalter samt Rückkehr zu Farbe, kleinere X-Symbole mit unverändertem Touchziel, den
 Sechs-Punkte-Verschiebehinweis, ausgegraute Menüs und das Entfernen der Checkbox.
+`ScanIntroTextIntegrationTest` prüft die vier echten Inline-Icons und lesbare
+Screenreader-Texte in allen vier Sprachen. Die Aktivitätstests prüfen außerdem,
+dass Anpassen während der Bearbeitung deaktiviert und nach dem Übernehmen wieder aktiv ist.
 
 ## Große Bild-PDFs
 

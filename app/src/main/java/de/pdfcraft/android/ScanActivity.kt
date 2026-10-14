@@ -46,7 +46,7 @@ class ScanActivity : ComponentActivity() {
     private var cropCorners = ScanCropView.defaultCorners()
     private var cropMode = ScanColorMode.COLOR
     private var cropTone=ScanTonePreset.ORIGINAL
-    private enum class AfterAccept { NONE,NEXT,EXPORT }
+    private enum class AfterAccept { NONE,EXPORT }
     private var cropFromCamera=true
     private var cropTurnsOverride:Int?=null
     private var queuedImage:android.net.Uri?=null
@@ -124,7 +124,6 @@ class ScanActivity : ComponentActivity() {
         val scanPrefs=getSharedPreferences("scanner_settings",MODE_PRIVATE)
         cropTone=runCatching { ScanTonePreset.valueOf(scanPrefs.getString("tone",null) ?: "ORIGINAL") }.getOrDefault(ScanTonePreset.ORIGINAL)
         cropMode=runCatching { ScanColorMode.valueOf(scanPrefs.getString("mode",null) ?: "COLOR") }.getOrDefault(ScanColorMode.COLOR)
-        if(cropMode==ScanColorMode.GRAYSCALE) cropMode=ScanColorMode.DOCUMENT
         restoreDraft()
         saveDraft()
         createUi()
@@ -180,7 +179,11 @@ class ScanActivity : ComponentActivity() {
             setOnClickListener { if (!busy && cropRaw == null) editSelected() }
         }
         preview.addView(crop, FrameLayout.LayoutParams(-1, -1))
-        empty = TextView(this).apply { setText(R.string.scan_empty); setTextColor(colors.muted); gravity = Gravity.CENTER; setPadding(dp(24), 0, dp(24), 0) }
+        empty = TextView(this).apply {
+            id=R.id.scan_intro;text=ScanIntroText.text(this@ScanActivity,colors.accent)
+            contentDescription=ScanIntroText.description(this@ScanActivity)
+            setTextColor(colors.muted);gravity=Gravity.CENTER;setPadding(dp(24),0,dp(24),0)
+        }
         preview.addView(empty, FrameLayout.LayoutParams(-1, -1))
         val previewRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
         previewRow.addView(preview,LinearLayout.LayoutParams(0,-1,1f))
@@ -222,15 +225,17 @@ class ScanActivity : ComponentActivity() {
                 setTextColor(if(cropTone==tone) android.graphics.Color.WHITE else colors.accent)
             })
         }
-        toneRail.addView(button(R.string.scan_black_white) {
-            cropMode=if(cropMode==ScanColorMode.COLOR) ScanColorMode.DOCUMENT else ScanColorMode.COLOR
+        fun modeButton(label:Int,mode:ScanColorMode,viewId:Int) = button(label) {
+            cropMode=if(cropMode==mode) ScanColorMode.COLOR else mode
             getSharedPreferences("scanner_settings",MODE_PRIVATE).edit().putString("mode",cropMode.name).apply();saveDraft();refresh()
         }.apply {
-            id=R.id.scan_black_white;textSize=11f;maxLines=2;setPadding(dp(4),dp(8),dp(4),dp(8));isSelected=cropMode!=ScanColorMode.COLOR
-            background=GradientDrawable().apply { setColor(if(cropMode!=ScanColorMode.COLOR) this@ScanActivity.colors.accent else this@ScanActivity.colors.tint);cornerRadius=dp(12).toFloat() }
-            setTextColor(if(cropMode!=ScanColorMode.COLOR) android.graphics.Color.WHITE else colors.accent)
+            id=viewId;textSize=11f;maxLines=2;setPadding(dp(4),dp(8),dp(4),dp(8));isSelected=cropMode==mode
+            background=GradientDrawable().apply { setColor(if(cropMode==mode) this@ScanActivity.colors.accent else this@ScanActivity.colors.tint);cornerRadius=dp(12).toFloat() }
+            setTextColor(if(cropMode==mode) android.graphics.Color.WHITE else colors.accent)
             androidx.core.view.ViewCompat.setStateDescription(this,getString(if(isSelected) R.string.ui_yes else R.string.ui_no))
-        })
+        }
+        toneRail.addView(modeButton(R.string.scan_grayscale,ScanColorMode.GRAYSCALE,R.id.scan_grayscale))
+        toneRail.addView(modeButton(R.string.scan_black_white,ScanColorMode.DOCUMENT,R.id.scan_black_white))
         crop.contentDescription = if (cropRaw != null) text(R.string.scan_adjust_corners) else getString(R.string.scan_page, selected + 1)
         empty.visibility = if (cropRaw == null && pages.isEmpty()) View.VISIBLE else View.GONE
         actions.removeAllViews()
@@ -244,10 +249,11 @@ class ScanActivity : ComponentActivity() {
             onDelete={ index -> confirmDeletePage(index) },onMove={ from,to -> withCropConfirmation { movePage(from,to) } })
     }
     private fun addPageActions(editing:Boolean) {
-        fun action(key:String,label:Int,description:Int,viewId:Int=View.NO_ID,primary:Boolean=false,run:()->Unit) {
+        fun action(key:String,label:Int,description:Int,viewId:Int=View.NO_ID,primary:Boolean=false,enabled:Boolean=true,run:()->Unit) {
             val cell=LinearLayout(this).apply {
                 orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(2),dp(6),dp(2),dp(6))
-                id=viewId;contentDescription=text(description);isFocusable=true;setOnClickListener { if(!busy) run() }
+                id=viewId;contentDescription=text(description);isFocusable=true
+                setOnClickListener { if(enabled && !busy) run() };isEnabled=enabled;alpha=if(enabled) 1f else .35f
                 addView(ImageView(this@ScanActivity).apply {
                     setPadding(dp(12),dp(12),dp(12),dp(12))
                     setImageDrawable(MaterialSymbols.drawable(this@ScanActivity,key,if(primary) android.graphics.Color.WHITE else colors.accent))
@@ -259,16 +265,13 @@ class ScanActivity : ComponentActivity() {
             actions.addView(cell,LinearLayout.LayoutParams(0,dp(82),1f))
         }
         action("rotate",R.string.scan_action_rotate,R.string.scan_rotate) { if(editing) rotateCrop() else rotateSelected() }
-        action("crop",R.string.scan_action_adjust,R.string.scan_edit_page) { if(!editing) editSelected() else crop.requestFocus() }
+        action("crop",R.string.scan_action_adjust,R.string.scan_edit_page,R.id.scan_adjust_button,enabled=!editing) { editSelected() }
         action("delete",R.string.scan_action_delete,R.string.scan_delete_page) {
             if(editing && editId==null) AlertDialog.Builder(this).setTitle(R.string.scan_delete_page).setMessage(R.string.scan_delete_confirm)
                 .setNegativeButton(R.string.scan_cancel,null).setPositiveButton(R.string.scan_delete_page) { _,_ -> cancelCrop() }.show()
             else confirmDeletePage(selected)
         }
-        action("next",R.string.scan_next,R.string.scan_next,
-            if(editing) R.id.scan_accept_button else R.id.scan_next_button,true) {
-            if(editing) acceptAndContinue(AfterAccept.NEXT) else nextSource()
-        }
+        if(editing) action("check",R.string.scan_action_accept,R.string.scan_accept,R.id.scan_accept_button,true) { acceptCrop() }
         action("scan_export",R.string.scan_export_action,R.string.scan_export_action,R.id.scan_export_button) {
             if(editing) acceptAndContinue(AfterAccept.EXPORT) else export()
         }
@@ -343,7 +346,6 @@ class ScanActivity : ComponentActivity() {
     private fun editSelected() {
         val page = pages.getOrNull(selected) ?: return
         cropRaw = page.raw; editId = page.id; cropCorners = page.corners.map { PointF(it.x, it.y) }; cropMode = page.mode;cropTone=page.tone
-        if(cropMode==ScanColorMode.GRAYSCALE) cropMode=ScanColorMode.DOCUMENT
         cropTurnsOverride=null
         saveDraft(); refresh(); loadPreview()
     }
@@ -389,16 +391,13 @@ class ScanActivity : ComponentActivity() {
             crop.setPhoto(it, if (raw != null) corners else ScanCropView.defaultCorners())
             if(raw==null) {
                 val continuation=pendingContinuation;pendingContinuation=AfterAccept.NONE
-                when(continuation) { AfterAccept.NEXT -> nextSource();AfterAccept.EXPORT -> export();AfterAccept.NONE -> Unit }
+                when(continuation) { AfterAccept.EXPORT -> export();AfterAccept.NONE -> Unit }
             }
         }
     }
 
     private fun acceptCrop() {
         acceptAndContinue(AfterAccept.NONE)
-    }
-    private fun nextSource() {
-        if(cropFromCamera) takePhoto() else pickImage()
     }
     private fun acceptAndContinue(continuation:AfterAccept) {
         val raw = cropRaw ?: return
@@ -560,7 +559,6 @@ class ScanActivity : ComponentActivity() {
             cropRaw = json.optString("crop").takeIf { it.isNotEmpty() && local(it).isFile }
             editId = json.optString("edit").takeIf { id -> pages.any { it.id == id } }
             cropCorners = decodeCorners(json.getJSONArray("corners")); cropMode = ScanColorMode.valueOf(json.getString("mode"))
-            if(cropMode==ScanColorMode.GRAYSCALE) cropMode=ScanColorMode.DOCUMENT
             cropTone=ScanTonePreset.valueOf(json.optString("tone","ORIGINAL"))
             cropFromCamera=json.optBoolean("from_camera",true);cropTurnsOverride=if(json.has("crop_turns")) json.getInt("crop_turns").coerceIn(0,3) else null
             queuedImage=json.optString("queued_image").takeIf { it.isNotBlank() }?.let(android.net.Uri::parse)

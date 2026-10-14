@@ -39,15 +39,22 @@ class ScanActivityIntegrationTest {
                 assertFalse(menu.isEnabled);assertTrue(menu.alpha<.5f)
                 assertNull(activity.findViewById<View>(R.id.scan_auto_next))
                 assertEquals(0,(field(activity,"actions") as LinearLayout).childCount)
+                val intro=activity.findViewById<android.widget.TextView>(R.id.scan_intro)
+                val styled=intro.text as android.text.Spanned
+                assertEquals(4,styled.getSpans(0,styled.length,android.text.style.ImageSpan::class.java).size)
+                assertFalse(intro.contentDescription.toString().contains('\uFFFC'))
             }
             i.runOnMainSync {
                 ScanActivity::class.java.getDeclaredMethod("importImage",Uri::class.java).apply { isAccessible=true }.invoke(activity,Uri.fromFile(source))
             };idle(activity)
             assertEquals(false,field(activity,"cropFromCamera"))
             i.runOnMainSync {
-                val labels=listOf(R.string.scan_rotate,R.string.scan_edit_page,R.string.scan_delete_page,R.string.scan_next,R.string.scan_export_action)
+                val labels=listOf(R.string.scan_rotate,R.string.scan_edit_page,R.string.scan_delete_page,R.string.scan_accept,R.string.scan_export_action)
                 labels.forEach { label -> assertEquals(1,descendants(activity.window.decorView).count { it.contentDescription==activity.getString(label) }) }
                 assertFalse(descendants(activity.window.decorView).any { it.contentDescription==activity.getString(R.string.scan_action_filter) })
+                assertNull(activity.findViewById<View>(R.id.scan_next_button))
+                val adjust=activity.findViewById<View>(R.id.scan_adjust_button)
+                assertFalse(adjust.isEnabled);assertTrue(adjust.alpha<.5f)
                 descendants(activity.window.decorView).single { it.contentDescription==activity.getString(R.string.scan_rotate) }.performClick()
             };idle(activity)
             ScanProcessing.loadPhoto(File(session,field(activity,"cropRaw") as String)).also {
@@ -56,8 +63,19 @@ class ScanActivityIntegrationTest {
             i.runOnMainSync {
                 ScanActivity::class.java.getDeclaredField("cropMode").apply { isAccessible=true }.set(activity,ScanColorMode.COLOR)
                 invoke(activity,"refresh")
+                activity.findViewById<View>(R.id.scan_grayscale).performClick()
+                assertEquals(ScanColorMode.GRAYSCALE,field(activity,"cropMode"))
+                assertTrue(activity.findViewById<View>(R.id.scan_grayscale).isSelected)
+                assertFalse(activity.findViewById<View>(R.id.scan_black_white).isSelected)
                 activity.findViewById<View>(R.id.scan_black_white).performClick()
                 assertTrue(activity.findViewById<View>(R.id.scan_black_white).isSelected)
+                assertFalse(activity.findViewById<View>(R.id.scan_grayscale).isSelected)
+                activity.findViewById<View>(R.id.scan_black_white).performClick()
+                assertEquals(ScanColorMode.COLOR,field(activity,"cropMode"))
+                activity.findViewById<View>(R.id.scan_grayscale).performClick()
+                activity.findViewById<View>(R.id.scan_grayscale).performClick()
+                assertEquals(ScanColorMode.COLOR,field(activity,"cropMode"))
+                activity.findViewById<View>(R.id.scan_black_white).performClick()
                 activity.findViewById<View>(R.id.scan_export_button).performClick()
             };idle(activity)
             i.runOnMainSync {
@@ -67,6 +85,11 @@ class ScanActivityIntegrationTest {
             };i.waitForIdleSync()
             assertNull(field(activity,"pending"));assertNull(field(activity,"cropRaw"))
             i.runOnMainSync { assertEquals(1,activity.findViewById<LinearLayout>(R.id.scan_strip).childCount) }
+            i.runOnMainSync {
+                assertTrue(activity.findViewById<View>(R.id.scan_adjust_button).isEnabled)
+                assertEquals(1f,activity.findViewById<View>(R.id.scan_adjust_button).alpha,.001f)
+                assertNull(activity.findViewById<View>(R.id.scan_accept_button))
+            }
             assertArrayEquals(original,source.readBytes())
             assertEquals("DOCUMENT",JSONObject(File(session,"session.json").readText()).getJSONArray("pages").getJSONObject(0).getString("mode"))
         } finally {
@@ -105,7 +128,7 @@ class ScanActivityIntegrationTest {
             invoke(activity,"saveDraft");invoke(activity,"onResume")
         }
         idle(activity)
-        i.runOnMainSync { invoke(activity,"acceptCrop") }
+        i.runOnMainSync { activity.findViewById<View>(R.id.scan_accept_button).performClick() }
         idle(activity)
     }
 

@@ -1,4 +1,7 @@
 <resources>
+    <item name="scan_intro" type="id" />
+    <item name="scan_grayscale" type="id" />
+    <item name="scan_adjust_button" type="id" />
     <item name="scan_next_button" type="id" />
     <item name="scan_black_white" type="id" />
     <item name="scan_choose_image_button" type="id" />

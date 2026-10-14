@@ -1,4 +1,5 @@
 <resources>
+    <string name="scan_action_accept">Apply</string>
     <string name="scan_next">Next</string>
     <string name="scan_export_action">Export</string>
     <string name="scan_black_white">Black/white</string>
@@ -33,7 +34,7 @@
     <string name="scan_color">Color</string>
     <string name="scan_grayscale">Grayscale</string>
     <string name="scan_document">Document contrast</string>
-    <string name="scan_empty">Use the camera icon above to photograph a page, or the image icon to choose an existing picture. Adjust the four corners, then continue with Next or create your PDF with Export. Everything is processed locally.</string>
+    <string name="scan_empty">Use the camera icon {camera} above for a photo, or the image icon {image} for an existing picture. Adjust the four corners and apply the page with {check}. Add more pages using the icons above. Export {scan_export} creates your PDF. Everything is processed locally.</string>
     <string name="scan_adjust_corners">Drag the four corners to the edges of the document.</string>
     <string name="scan_name">PDF file name</string>
     <string name="scan_busy">Processing image…</string>

@@ -31,12 +31,16 @@ def main():
     node=next(n for n in hierarchy().iter('node') if n.get('content-desc','').startswith('pdfcraft-gallery-test.png,'))
     tap(description=node.get('content-desc'));ready()
     assert draft()[1]['from_camera']==False
-    assert all(any(n.get('text')==label for n in hierarchy().iter('node')) for label in ['Drehen','Anpassen','Löschen','Weiter','Exportieren'])
+    assert all(any(n.get('text')==label for n in hierarchy().iter('node')) for label in ['Drehen','Anpassen','Löschen','Übernehmen','Exportieren'])
+    adjust=next(n for n in hierarchy().iter('node') if n.get('resource-id')==package+':id/scan_adjust_button')
+    assert adjust.get('enabled')=='false'
     drag_corner()
     tap(description='Seite drehen');ready()
     out=Path('/tmp/opencode/pdfcraft-scanner');out.mkdir(exist_ok=True)
     screenshot(out,'gallery-icons.png')
-    tap(description='Weiter')
+    tap(description='Seite übernehmen');ready()
+    assert not draft()[1].get('pending') and not draft()[1].get('crop')
+    tap(description='Bild auswählen')
     wait_hierarchy(lambda ns:any(n.get('content-desc')=='Show roots' for n in ns))
     adb('shell','input','keyevent','4');ready()
     count=len(draft()[1]['pages']);assert count==count_before+1
@@ -44,11 +48,13 @@ def main():
     assert hashlib.sha256(adb('exec-out','cat',remote,binary=True)).hexdigest()==original
     name='Bilder-Test-'+str(time.time_ns())
     tap(description='Seitenränder bearbeiten');ready()
+    tap(text='Graustufen')
+    if draft()[1]['mode']!='GRAYSCALE':tap(text='Graustufen')
     tap(description='Exportieren');adb('shell','input','text',name);tap(text='PDF erstellen')
     wait_hierarchy(lambda ns:any(n.get('resource-id')==package+':id/page_indicator' and n.get('text','').endswith(f' / {count}') for n in ns))
     assert next(d for d in records() if d['name']==name+'.pdf')['pageCount']==count
     screenshot(out,'gallery-pdf.png')
     adb('shell','rm',remote)
-    print('PASS: image picker, top loupe, simplified editor, Next reopens image selection, unchanged source and Export commits current edit')
+    print('PASS: image picker, top loupe, disabled Adjust during crop, check applies without opening picker, manual image selection, grayscale and Export commits current edit')
 
 if __name__=='__main__':main()
