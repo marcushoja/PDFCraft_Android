@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
@@ -136,18 +137,32 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
                 }
             }
             item.addView(image, FrameLayout.LayoutParams(dp(68), dp(64), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
-            item.addView(TextView(context).apply {
+            val footer = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            footer.addView(TextView(context).apply {
                 text = label
                 textSize = 11f
                 setTextColor(colors.ink)
-                gravity = Gravity.CENTER
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, FrameLayout.LayoutParams(-1, dp(24), Gravity.BOTTOM))
+            }, LinearLayout.LayoutParams(-2, -2))
+            footer.addView(ImageView(context).apply {
+                setImageDrawable(MaterialSymbols.drawable(context, "scan_drag", colors.muted))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { leftMargin = dp(3) })
+            item.addView(footer, FrameLayout.LayoutParams(-1, dp(24), Gravity.BOTTOM))
             item.addView(ImageButton(context).apply {
                 contentDescription = context.getString(R.string.scan_delete_page_number, index + 1)
                 setImageDrawable(MaterialSymbols.drawable(context, "close", colors.accent))
-                setPadding(dp(10), dp(10), dp(10), dp(10))
-                background = rounded((colors.tint and 0x00ffffff) or (0xcc shl 24))
+                setPadding(dp(11), dp(11), dp(11), dp(11))
+                background = InsetDrawable(GradientDrawable().apply {
+                    setColor((this@ScanPageStrip.colors.tint and 0x00ffffff) or (0xcc shl 24))
+                    cornerRadius = dp(12).toFloat()
+                }, dp(8))
+                // InsetDrawable supplies its own padding; retain the smaller icon size.
+                setPadding(dp(11),dp(11),dp(11),dp(11))
                 isEnabled = actionsEnabled
                 setOnClickListener {
                     val current = pages.indexOfFirst { it.id == page.id }

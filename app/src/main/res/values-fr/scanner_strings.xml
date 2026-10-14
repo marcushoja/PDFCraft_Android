@@ -1,4 +1,7 @@
 <resources>
+    <string name="scan_next">Suivant</string>
+    <string name="scan_export_action">Exporter</string>
+    <string name="scan_black_white">Noir/blanc</string>
     <string name="scan_choose_image">Choisir une image</string>
     <string name="scan_image_error">Impossible d’ouvrir cette image. Choisissez une image compatible de 64 Mio maximum.</string>
     <string name="scan_action_rotate">Tourner</string>
@@ -30,7 +33,7 @@
     <string name="scan_color">Couleur</string>
     <string name="scan_grayscale">Niveaux de gris</string>
     <string name="scan_document">Contraste document</string>
-    <string name="scan_empty">Photographiez une page ou choisissez une image. Ajustez ses quatre coins, puis ajoutez la page suivante. Tout est traité localement.</string>
+    <string name="scan_empty">Utilisez l’icône appareil photo en haut pour une photo, ou l’icône image pour choisir une image existante. Ajustez les quatre coins. Suivant ajoute une autre page ; Exporter crée votre PDF. Tout est traité localement.</string>
     <string name="scan_adjust_corners">Faites glisser les quatre coins vers les bords du document.</string>
     <string name="scan_name">Nom du fichier PDF</string>
     <string name="scan_busy">Traitement de l’image…</string>

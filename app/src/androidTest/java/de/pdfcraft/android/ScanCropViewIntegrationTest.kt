@@ -101,6 +101,45 @@ class ScanCropViewIntegrationTest {
         }
     }
 
+    @Test fun allFourCornersKeepMagnifierAtOppositeTopRegardlessOfFingerPosition() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val context = instrumentation.targetContext
+            val density = context.resources.displayMetrics.density
+            val size = (400 * density).toInt()
+            val padding = 24f * density
+            val span = size - 2f * padding
+            val margin = 12f * density
+            val diameter = 112f * density
+            val source = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888)
+            try {
+                val view = ScanCropView(context)
+                view.layout(0, 0, size, size)
+                val corners = ScanCropView.defaultCorners()
+                corners.forEachIndexed { index, point ->
+                    view.setPhoto(source)
+                    assertTrue(touch(view, MotionEvent.ACTION_DOWN, padding + point.x * span, padding + point.y * span))
+                    val expectedLeft = if (index == 0 || index == 3) size - margin - diameter else margin
+                    fun verify() {
+                        val bounds = requireNotNull(view.magnifierBounds())
+                        assertEquals(expectedLeft, bounds.left, .01f)
+                        assertEquals(margin, bounds.top, .01f)
+                        assertEquals(diameter, bounds.width(), .01f)
+                        assertEquals(diameter, bounds.height(), .01f)
+                    }
+                    verify()
+                    // Moving across either axis (including rejected moves) never switches sides or rows.
+                    for (finger in corners + PointF(.5f, .5f)) {
+                        assertTrue(touch(view, MotionEvent.ACTION_MOVE, padding + finger.x * span, padding + finger.y * span))
+                        verify()
+                    }
+                    assertTrue(touch(view, MotionEvent.ACTION_CANCEL, padding, padding))
+                    assertNull(view.magnifierBounds())
+                }
+            } finally { source.recycle() }
+        }
+    }
+
     @Test fun magnifierAtAllImageEdgesUsesWhiteOutsideAndHidesAfterCancel() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
@@ -123,6 +162,7 @@ class ScanCropViewIntegrationTest {
                     assertFalse(bounds.contains(x, y))
                     assertTrue(bounds.left >= 12f * density - .01f)
                     assertTrue(bounds.right <= size - 12f * density + .01f)
+                    assertEquals(12f * density, bounds.top, .01f)
                     view.draw(Canvas(rendered))
                     val dx = if (point.x == 0f) 12f * density else -12f * density
                     val dy = if (point.y == 0f) 12f * density else -12f * density

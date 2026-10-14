@@ -11,6 +11,8 @@ import androidx.core.graphics.PathParser
 /** Local Material Symbols paths fetched through Iconify. Apache-2.0, Google. */
 object MaterialSymbols {
     private val paths = mapOf(
+        "scan_drag" to "M9 4a2 2 0 1 0 0 4a2 2 0 0 0 0-4M15 4a2 2 0 1 0 0 4a2 2 0 0 0 0-4M9 10a2 2 0 1 0 0 4a2 2 0 0 0 0-4M15 10a2 2 0 1 0 0 4a2 2 0 0 0 0-4M9 16a2 2 0 1 0 0 4a2 2 0 0 0 0-4M15 16a2 2 0 1 0 0 4a2 2 0 0 0 0-4",
+        "scan_export" to "M11 3h2v10l3-3 1.4 1.4L12 17l-5.4-5.6L8 10l3 3zM5 17v3h14v-3h2v5H3v-5z",
         "image" to "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2M5 5h14v14H5zm1 12h12l-4-5-3 4-2-3zM8 6a2 2 0 1 0 0 4a2 2 0 0 0 0-4",
         "check" to "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
         "scan_filter" to "M12 3a5 5 0 1 0 0 10a5 5 0 0 0 0-10M8 10a5 5 0 1 0 0 10a5 5 0 0 0 0-10M16 10a5 5 0 1 0 0 10a5 5 0 0 0 0-10",

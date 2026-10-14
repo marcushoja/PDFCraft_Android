@@ -1,4 +1,7 @@
 <resources>
+    <string name="scan_next">Weiter</string>
+    <string name="scan_export_action">Exportieren</string>
+    <string name="scan_black_white">Schwarz/Weiß</string>
     <string name="scan_choose_image">Bild auswählen</string>
     <string name="scan_image_error">Dieses Bild konnte nicht geöffnet werden. Bitte wähle ein unterstütztes Bild bis 64 MiB.</string>
     <string name="scan_action_rotate">Drehen</string>
@@ -30,7 +33,7 @@
     <string name="scan_color">Farbe</string>
     <string name="scan_grayscale">Graustufen</string>
     <string name="scan_document">Dokumentkontrast</string>
-    <string name="scan_empty">Fotografiere eine Seite oder wähle ein Bild. Ziehe die vier Ecken an die Dokumentränder und füge danach die nächste Seite hinzu. Alles wird lokal verarbeitet.</string>
+    <string name="scan_empty">Tippe oben auf das Kamera-Symbol für ein Foto oder auf das Bild-Symbol für ein vorhandenes Bild. Ziehe die vier Ecken an die Dokumentränder. Mit Weiter fügst du die nächste Seite hinzu, mit Exportieren erstellst du deine PDF. Alles wird lokal verarbeitet.</string>
     <string name="scan_adjust_corners">Ziehe die vier Eckpunkte an die Dokumentränder.</string>
     <string name="scan_name">PDF-Dateiname</string>
     <string name="scan_busy">Bild wird verarbeitet…</string>

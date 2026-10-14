@@ -21,6 +21,22 @@ import java.util.concurrent.CancellationException
 
 @RunWith(AndroidJUnit4::class)
 class ScanProcessingIntegrationTest {
+    @Test fun blackWhitePreviewUsesThresholdWithoutChangingExportFilterDefaults() {
+        val source=Bitmap.createBitmap(4,1,Bitmap.Config.ARGB_8888)
+        val preview=Bitmap.createBitmap(4,1,Bitmap.Config.ARGB_8888)
+        try {
+            listOf(80,160,180,230).forEachIndexed { index,value -> source.setPixel(index,0,Color.rgb(value,value,value)) }
+            Canvas(preview).drawBitmap(source,0f,0f,Paint().apply {
+                colorFilter=ScanProcessing.previewFilter(ScanColorMode.DOCUMENT,ScanTonePreset.ORIGINAL,binaryPreview=true)
+            })
+            assertEquals(Color.BLACK,preview.getPixel(0,0));assertEquals(Color.BLACK,preview.getPixel(1,0))
+            assertEquals(Color.WHITE,preview.getPixel(2,0));assertEquals(Color.WHITE,preview.getPixel(3,0))
+            Canvas(preview).drawBitmap(source,0f,0f,Paint().apply {
+                colorFilter=ScanProcessing.previewFilter(ScanColorMode.DOCUMENT,ScanTonePreset.ORIGINAL)
+            })
+            assertEquals(80,Color.red(preview.getPixel(0,0)))
+        } finally { source.recycle();preview.recycle() }
+    }
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val directory = File(context.cacheDir, "scan-test-${System.nanoTime()}").apply { mkdirs() }
 

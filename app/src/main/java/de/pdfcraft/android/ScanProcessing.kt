@@ -96,7 +96,7 @@ object ScanProcessing {
     /** Shared linear preview/export filter; native rendering clamps RGB to 0..255 and preserves alpha.
      * DOCUMENT previews grayscale plus tone; its additional black/white threshold is export-only.
      */
-    fun previewFilter(mode: ScanColorMode, tone: ScanTonePreset): ColorMatrixColorFilter? {
+    fun previewFilter(mode: ScanColorMode, tone: ScanTonePreset, binaryPreview:Boolean=false): ColorMatrixColorFilter? {
         if (mode == ScanColorMode.COLOR && tone == ScanTonePreset.ORIGINAL) return null
         val contrast = tone.contrast
         val offset = tone.brightness + 128f * (1f - contrast)
@@ -110,6 +110,12 @@ object ScanProcessing {
             if (mode != ScanColorMode.COLOR) setSaturation(0f)
             // Apply grayscale first, then contrast around mid-gray and the RGB brightness offset.
             postConcat(adjustment)
+            if(binaryPreview && mode==ScanColorMode.DOCUMENT) {
+                // Display a near-step threshold; export still uses the exact pixel threshold.
+                val gain=256f;val bias=-169f*gain
+                postConcat(ColorMatrix(floatArrayOf(gain,0f,0f,0f,bias,0f,gain,0f,0f,bias,
+                    0f,0f,gain,0f,bias,0f,0f,0f,1f,0f)))
+            }
         }
         return ColorMatrixColorFilter(matrix)
     }

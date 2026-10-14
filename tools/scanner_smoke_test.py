@@ -2,7 +2,7 @@
 import io,json,re,time,xml.etree.ElementTree as ET
 from pathlib import Path
 from PIL import Image,ImageOps
-from smoke_test import adb,tap,hierarchy,wait_hierarchy,screenshot,records,check
+from smoke_test import adb,tap,hierarchy,wait_hierarchy,screenshot,records
 
 PACKAGE='de.pdfcraft.android'
 
@@ -18,16 +18,20 @@ def draft():
 
 def capture(already_open=False):
     if not already_open:tap(description='Foto aufnehmen')
-    wait_hierarchy(lambda ns:any(n.get('content-desc')=='Shutter' for n in ns))
+    wait_hierarchy(lambda ns:any(n.get('content-desc')=='Shutter' and n.get('enabled')=='true' for n in ns))
+    time.sleep(1)  # Emulator camera session can lag behind its enabled shutter UI.
     tap(description='Shutter')
     wait_hierarchy(lambda ns:any(n.get('content-desc')=='Done' for n in ns))
     tap(description='Done');ready()
 
-def choose_mode(label):
-    tap(description='Filter')
-    item=next(n for n in hierarchy().iter('node') if n.get('text')==label and n.get('resource-id')=='android:id/text1')
-    x1,y1,x2,y2=map(int,re.findall(r'\d+',item.get('bounds')))
-    adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2));ready()
+def black_white(enabled):
+    node=next(n for n in hierarchy().iter('node') if n.get('resource-id')==PACKAGE+':id/scan_black_white')
+    if (node.get('selected')=='true')!=enabled:tap(text='Schwarz/Weiß')
+
+def next_camera_then_cancel():
+    tap(description='Weiter')
+    wait_hierarchy(lambda ns:any(n.get('content-desc')=='Shutter' for n in ns))
+    adb('shell','input','keyevent','4');ready()
 
 def drag_thumbnail_last_to_first():
     before=draft()[1]['pages']
@@ -70,15 +74,14 @@ def main():
     tap(description='PDF scannen');ready()
     if any(n.get('resource-id')==PACKAGE+':id/scan_accept_button' for n in hierarchy().iter('node')):
         tap(description='Zurück');ready()
-    check('Nach dem Übernehmen nächstes Foto',False)
+    assert not any(n.get('resource-id')==PACKAGE+':id/scan_auto_next' for n in hierarchy().iter('node'))
     print('Scanner: camera and corner magnifier',flush=True)
-    capture();tap(text='Heller');choose_mode('Farbe');check('Nach dem Übernehmen nächstes Foto',True)
+    capture();tap(text='Heller');black_white(False)
     drag_corner();screenshot(out,'camera-corners.png')
-    tap(description='Seite übernehmen')
+    tap(description='Weiter')
     capture(already_open=True)
     assert draft()[1]['tone']=='BRIGHTER'
-    check('Nach dem Übernehmen nächstes Foto',False)
-    choose_mode('Graustufen');tap(description='Seite übernehmen');ready()
+    black_white(True);next_camera_then_cancel()
     print('Scanner: thumbnail actions',flush=True)
     drag_thumbnail_last_to_first()
     tap(description='Seitenoptionen');tap(text='Seite drehen');ready()
@@ -91,7 +94,7 @@ def main():
     before_delete=len(draft()[1]['pages'])
     tap(description='Seite 1 löschen');tap(text='Abbrechen');assert len(draft()[1]['pages'])==before_delete
     tap(description='Seite 1 löschen');tap(text='Seite löschen');ready();assert len(draft()[1]['pages'])==before_delete-1
-    capture();tap(description='Seite übernehmen');ready()
+    capture();next_camera_then_cancel()
     token,before=draft();count=len(before['pages']);assert count>=2
     screenshot(out,'page-strip.png')
     print('Scanner: resume and PDF export',flush=True)
@@ -100,12 +103,12 @@ def main():
     tap(description='PDF scannen');ready()
     assert draft()[0]==token and draft()[1]['pages']==before['pages']
     name='Kamera-Test-'+str(time.time_ns())
-    tap(description='PDF erstellen');adb('shell','input','text',name);tap(text='PDF erstellen')
+    tap(description='Exportieren');adb('shell','input','text',name);tap(text='PDF erstellen')
     wait_hierarchy(lambda ns:any(n.get('resource-id')==PACKAGE+':id/page_indicator' and n.get('text','').endswith(f' / {count}') for n in ns))
     docs=records();doc=next(d for d in docs if d['name']==name+'.pdf')
     assert doc['pageCount']==count,doc
     assert adb('shell','run-as',PACKAGE,'ls','files/scanner-drafts').strip()==''
     screenshot(out,'exported-pdf.png')
-    print('PASS: real camera, corner drag, live tone presets, auto-next with retained preset, thumbnail drag ordering, confirmed X deletion, rotation/editing, draft resume and named multi-page library PDF')
+    print('PASS: real camera, top loupe, black/white toggle, explicit Next with retained preset, drag ordering, small-X confirmation, draft resume and separate Export')
 
 if __name__=='__main__':main()

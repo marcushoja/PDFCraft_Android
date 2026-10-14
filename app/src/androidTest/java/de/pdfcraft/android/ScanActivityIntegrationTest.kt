@@ -9,6 +9,8 @@ import android.widget.LinearLayout
 import android.view.View
 import android.view.ViewGroup
 import android.net.Uri
+import android.view.inspector.WindowInspector
+import android.widget.EditText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.core.content.FileProvider
@@ -22,9 +24,10 @@ import java.io.File
 class ScanActivityIntegrationTest {
     private fun descendants(view:View):List<View> = listOf(view)+if(view is ViewGroup)
         (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-    @Test fun selectedImageUsesIconEditorAndCanRotateWithoutOpeningCameraAutomatically() {
+    @Test fun selectedImageUsesSimpleControlsAndExportIncludesCurrentEdit() {
         val prefs=context.getSharedPreferences("scanner_draft",0);val old=prefs.getString("session",null)
         val settings=context.getSharedPreferences("scanner_settings",0);val oldAuto=settings.all["auto_next"]
+        val oldMode=settings.getString("mode",null)
         prefs.edit().remove("session").commit();settings.edit().putBoolean("auto_next",true).commit()
         val source=File.createTempFile("picked-image-",".jpg",context.cacheDir)
         val bitmap=Bitmap.createBitmap(120,180,Bitmap.Config.ARGB_8888).apply { eraseColor(Color.CYAN) }
@@ -32,25 +35,45 @@ class ScanActivityIntegrationTest {
         val original=source.readBytes();val activity=launch();val session=field(activity,"session") as File
         try {
             i.runOnMainSync {
+                val menu=field(activity,"more") as View
+                assertFalse(menu.isEnabled);assertTrue(menu.alpha<.5f)
+                assertNull(activity.findViewById<View>(R.id.scan_auto_next))
+                assertEquals(0,(field(activity,"actions") as LinearLayout).childCount)
+            }
+            i.runOnMainSync {
                 ScanActivity::class.java.getDeclaredMethod("importImage",Uri::class.java).apply { isAccessible=true }.invoke(activity,Uri.fromFile(source))
             };idle(activity)
             assertEquals(false,field(activity,"cropFromCamera"))
             i.runOnMainSync {
-                val labels=listOf(R.string.scan_rotate,R.string.scan_action_filter,R.string.scan_edit_page,R.string.scan_delete_page,R.string.scan_accept)
+                val labels=listOf(R.string.scan_rotate,R.string.scan_edit_page,R.string.scan_delete_page,R.string.scan_next,R.string.scan_export_action)
                 labels.forEach { label -> assertEquals(1,descendants(activity.window.decorView).count { it.contentDescription==activity.getString(label) }) }
+                assertFalse(descendants(activity.window.decorView).any { it.contentDescription==activity.getString(R.string.scan_action_filter) })
                 descendants(activity.window.decorView).single { it.contentDescription==activity.getString(R.string.scan_rotate) }.performClick()
             };idle(activity)
             ScanProcessing.loadPhoto(File(session,field(activity,"cropRaw") as String)).also {
                 assertEquals(180,it.width);assertEquals(120,it.height)
             }.recycle()
-            i.runOnMainSync { activity.findViewById<View>(R.id.scan_accept_button).performClick() };idle(activity)
+            i.runOnMainSync {
+                ScanActivity::class.java.getDeclaredField("cropMode").apply { isAccessible=true }.set(activity,ScanColorMode.COLOR)
+                invoke(activity,"refresh")
+                activity.findViewById<View>(R.id.scan_black_white).performClick()
+                assertTrue(activity.findViewById<View>(R.id.scan_black_white).isSelected)
+                activity.findViewById<View>(R.id.scan_export_button).performClick()
+            };idle(activity)
+            i.runOnMainSync {
+                val windows=WindowInspector.getGlobalWindowViews().flatMap { descendants(it) }
+                assertTrue(windows.filterIsInstance<EditText>().any { it.hint==activity.getString(R.string.scan_name) })
+                windows.last { it.id==android.R.id.button2 && it.isShown }.performClick()
+            };i.waitForIdleSync()
             assertNull(field(activity,"pending"));assertNull(field(activity,"cropRaw"))
             i.runOnMainSync { assertEquals(1,activity.findViewById<LinearLayout>(R.id.scan_strip).childCount) }
             assertArrayEquals(original,source.readBytes())
+            assertEquals("DOCUMENT",JSONObject(File(session,"session.json").readText()).getJSONArray("pages").getJSONObject(0).getString("mode"))
         } finally {
             i.runOnMainSync { activity.finish() };i.waitForIdleSync();ScanActivity.clearImportedDraft(context,session.name);source.delete()
             if(old==null) prefs.edit().remove("session").commit() else prefs.edit().putString("session",old).commit()
             if(oldAuto==null) settings.edit().remove("auto_next").commit() else settings.edit().putBoolean("auto_next",oldAuto as Boolean).commit()
+            if(oldMode==null) settings.edit().remove("mode").commit() else settings.edit().putString("mode",oldMode).commit()
         }
     }
     private val i=InstrumentationRegistry.getInstrumentation()
@@ -82,7 +105,7 @@ class ScanActivityIntegrationTest {
             invoke(activity,"saveDraft");invoke(activity,"onResume")
         }
         idle(activity)
-        i.runOnMainSync { assertTrue(activity.findViewById<android.view.View>(R.id.scan_accept_button).performClick()) }
+        i.runOnMainSync { invoke(activity,"acceptCrop") }
         idle(activity)
     }
 

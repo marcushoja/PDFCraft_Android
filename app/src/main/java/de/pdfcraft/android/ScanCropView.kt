@@ -15,7 +15,7 @@ class ScanCropView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var appearance:ColorMatrixColorFilter?=null
     fun setAppearance(mode:ScanColorMode,tone:ScanTonePreset) {
-        appearance=ScanProcessing.previewFilter(mode,tone);invalidate()
+        appearance=ScanProcessing.previewFilter(mode,tone,binaryPreview=mode==ScanColorMode.DOCUMENT);invalidate()
     }
     private var dragging = -1
     var onCornersChanged: ((List<PointF>) -> Unit)? = null
@@ -23,8 +23,6 @@ class ScanCropView(context: Context) : View(context) {
         set(value) { field = value; if (!value) finishDrag(); invalidate() }
     var accentColor = ZenColors.light.accent
     private val density = resources.displayMetrics.density
-    private var fingerX = 0f
-    private var fingerY = 0f
     private val loupeRect = RectF()
     private val zoomRect = RectF()
     private val loupeClip = Path()
@@ -57,23 +55,9 @@ class ScanCropView(context: Context) : View(context) {
         if (!editable || photo == null || dragging !in points.indices || width <= 0 || height <= 0) return false
         val margin = min(12f * density, min(width, height) / 8f)
         val diameter = min(112f * density, min(width, height) - 2f * margin)
-        val active = points[dragging]
-        val activeX = imageRect.left + active.x * imageRect.width()
-        val activeY = imageRect.top + active.y * imageRect.height()
-        var bestDistance = -1f
-        for (corner in 0..3) {
-            val left = if (corner % 2 == 0) margin else width - margin - diameter
-            val top = if (corner < 2) margin else height - margin - diameter
-            // Distance to the circle's bounding box avoids covering either the finger or the
-            // accepted corner, even when an invalid move leaves them far apart.
-            fun distance(x: Float, y: Float): Float = hypot(
-                x - x.coerceIn(left, left + diameter), y - y.coerceIn(top, top + diameter))
-            val distance = min(distance(activeX, activeY), distance(fingerX, fingerY))
-            if (distance > bestDistance) {
-                bestDistance = distance
-                loupeRect.set(left, top, left + diameter, top + diameter)
-            }
-        }
+        // Keep the loupe at the top, opposite the active corner's original side.
+        val left = if (dragging == 0 || dragging == 3) width - margin - diameter else margin
+        loupeRect.set(left, margin, left + diameter, margin + diameter)
         return true
     }
 
@@ -182,16 +166,12 @@ class ScanCropView(context: Context) : View(context) {
                         event.y - imageRect.top - p.y * imageRect.height()) > 36f * density) {
                     dragging = -1; return false
                 }
-                fingerX = event.x
-                fingerY = event.y
                 parent?.requestDisallowInterceptTouchEvent(true)
                 invalidate()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 if (dragging < 0) return false
-                fingerX = event.x
-                fingerY = event.y
                 updateDraggedCorner(event.x,event.y)
                 invalidate()
                 return true
