@@ -10,6 +10,11 @@ Ansichts-/Sortiereinstellungen, Namen und Hinzufüge-Datum in beiden Richtungen 
 Öffnen und Dokumentoptionen in der Liste. Der Unterstützungslink steht zusätzlich im
 Fußbereich bei den Autor-Credits.
 
+Die kompakte Liste wird zusätzlich auf maximal 80 dp Zeilenhöhe bei normaler
+Schriftgröße, separate Dokumentoptionen und Icon-Schalter mit lesbaren
+Bedienungshilfe-Beschreibungen geprüft. Layout-, Overlay- und Aktionstests liefen
+auf API 31 und API 37 erfolgreich (je drei Tests); Build, JVM-Tests und Lint ebenfalls.
+
 `ScanCropViewIntegrationTest` prüft mit echten Zwei-Finger-Touch-Ereignissen den Zoom
 der bestätigten Vorschau ohne Klick oder Eckpunktänderung. Der Aktivitätstest prüft
 denselben Ablauf nach dem Übernehmen: kein Rücksprung in die Eckpunktbearbeitung;

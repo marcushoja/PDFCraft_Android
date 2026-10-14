@@ -54,7 +54,7 @@ class LibraryLayoutIntegrationTest {
                         View.MeasureSpec.makeMeasureSpec(host.resources.displayMetrics.heightPixels,View.MeasureSpec.EXACTLY))
                     view.layout(0,0,view.measuredWidth,view.measuredHeight)
                 }
-                fun button(text:String)=descendants(view).filterIsInstance<TextView>().single { it.text.toString()==text }
+                fun button(text:String)=descendants(view).single { it.contentDescription?.toString()==text }
                 fun grid()=descendants(view).filterIsInstance<GridView>().single()
                 button(host.getString(R.string.library_list)).performClick()
                 layout()
@@ -78,8 +78,12 @@ class LibraryLayoutIntegrationTest {
                 val doc=grid().adapter.getItem(0) as PdfDocument
                 val cell=grid().adapter.getView(0,null,grid()) as LinearLayout
                 assertEquals(LinearLayout.HORIZONTAL,cell.orientation)
+                cell.measure(View.MeasureSpec.makeMeasureSpec(view.measuredWidth,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED))
+                assertTrue(cell.measuredHeight<= (80*host.resources.displayMetrics.density).toInt())
+                assertTrue(button(host.getString(R.string.library_grid)) is android.widget.ImageButton)
+                assertTrue(button(host.getString(R.string.library_sort)) is android.widget.ImageButton)
                 cell.performClick();assertEquals(doc,opened)
-                ((cell.getChildAt(0) as ViewGroup).getChildAt(1)).performClick();assertEquals(doc,options)
+                cell.getChildAt(2).performClick();assertEquals(doc,options)
                 view=library();host.setContentView(view)
                 layout()
                 assertEquals(1,grid().numColumns)

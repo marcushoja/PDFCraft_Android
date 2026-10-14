@@ -45,7 +45,7 @@ class LibraryView(
                 tag = listMode
                 orientation = if (listMode) HORIZONTAL else VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(4), dp(4), dp(4), dp(10))
+                setPadding(dp(4), dp(4), dp(4), dp(if (listMode) 4 else 10))
                 val frame = FrameLayout(context)
                 frame.background = rounded(surface, 14)
                 frame.clipToOutline=true
@@ -62,19 +62,27 @@ class LibraryView(
                         android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),rounded(Color.WHITE,14))
                     contentDescription = UiText.t(context,"Dokumentoptionen")
                 }, FrameLayout.LayoutParams(dp(48),dp(48),Gravity.END or Gravity.TOP))
-                addView(frame, LayoutParams(if (listMode) dp(88) else -1, dp(if (listMode) 104 else 174)))
+                addView(frame, LayoutParams(if (listMode) dp(48) else -1, dp(if (listMode) 64 else 174)))
                 val details = LinearLayout(context).apply {
                     orientation = VERTICAL
                     if (listMode) setPadding(dp(12),0,dp(8),0)
-                    addView(label("", 15f).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; minHeight = dp(44); setPadding(dp(2),dp(5),dp(2),0) })
-                    addView(label("", 12f).apply { setTextColor(muted) })
+                    addView(label("", if (listMode) 14f else 15f).apply {
+                        maxLines = if (listMode) 1 else 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                        minHeight = if (listMode) 0 else dp(44); setPadding(dp(2),dp(if (listMode) 0 else 5),dp(2),0)
+                    })
+                    addView(label("", 12f).apply { setTextColor(muted); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                     addView(label("", 12f).apply { setTextColor(muted); visibility = if (listMode) VISIBLE else GONE })
                 }
                 addView(details, if (listMode) LayoutParams(0,-2,1f) else LayoutParams(-1,-2))
+                if (listMode) {
+                    val options = frame.getChildAt(1)
+                    frame.removeView(options)
+                    addView(options, LayoutParams(dp(48),dp(48)))
+                }
             }
             val frame = cell.getChildAt(0) as FrameLayout
-            thumbnails.load(store.file(doc), 0, dp(150), frame.getChildAt(0) as ImageView)
-            frame.getChildAt(1).setOnClickListener { onOptions(doc) }
+            thumbnails.load(store.file(doc), 0, dp(if (listMode) 48 else 150), frame.getChildAt(0) as ImageView)
+            (if (listMode) cell.getChildAt(2) else frame.getChildAt(1)).setOnClickListener { onOptions(doc) }
             val details = cell.getChildAt(1) as LinearLayout
             (details.getChildAt(0) as TextView).text = doc.name.replace(Regex("\\.pdf$",RegexOption.IGNORE_CASE),"")
             (details.getChildAt(1) as TextView).text = UiText.t(context, if (doc.pageCount > 0) "Seite ${doc.page + 1} / ${doc.pageCount}" else "Noch nicht gelesen")
@@ -117,17 +125,19 @@ class LibraryView(
         }
         addView(tabs)
         val viewOptions = LinearLayout(context).apply { gravity = Gravity.END; setPadding(dp(12),0,dp(12),0) }
-        viewOptions.addView(action(context.getString(if (listMode) R.string.library_grid else R.string.library_list), "") {
+        viewOptions.addView(iconAction(if (listMode) "pages" else "library_list", if (listMode) R.string.library_grid else R.string.library_list) {
             listMode = !listMode
             preferences.edit().putBoolean("list",listMode).apply()
             grid.numColumns = columnCount()
-            (viewOptions.getChildAt(0) as TextView).apply {
-                setText(if (listMode) R.string.library_grid else R.string.library_list)
-                contentDescription = text
+            grid.verticalSpacing = dp(if (listMode) 2 else 8)
+            (viewOptions.getChildAt(0) as ImageView).apply {
+                setImageDrawable(MaterialSymbols.drawable(context,if (listMode) "pages" else "library_list",accent))
+                contentDescription = context.getString(if (listMode) R.string.library_grid else R.string.library_list)
+                tooltipText = contentDescription
             }
             adapter.notifyDataSetChanged()
-        }.apply { contentDescription = text })
-        viewOptions.addView(action(context.getString(R.string.library_sort), "") {
+        })
+        viewOptions.addView(iconAction("library_sort", R.string.library_sort) {
             val labels = arrayOf(R.string.library_name_ascending,R.string.library_name_descending,R.string.library_date_descending,R.string.library_date_ascending)
             android.app.AlertDialog.Builder(context).setTitle(R.string.library_sort)
                 .setSingleChoiceItems(labels.map { context.getString(it) }.toTypedArray(),sortOrder) { dialog, index ->
@@ -135,12 +145,12 @@ class LibraryView(
                     preferences.edit().putInt("sort",index).apply()
                     tab = 1; refresh(); dialog.dismiss()
                 }.setNegativeButton(R.string.support_close,null).show()
-        }.apply { contentDescription = text })
+        })
         addView(viewOptions)
         val frame = FrameLayout(context)
         grid = GridView(context).apply {
             numColumns = columnCount()
-            horizontalSpacing = dp(8); verticalSpacing = dp(8); setPadding(dp(12),dp(8),dp(12),dp(8))
+            horizontalSpacing = dp(8); verticalSpacing = dp(if (listMode) 2 else 8); setPadding(dp(12),dp(8),dp(12),dp(8))
             clipToPadding = false; adapter = this@LibraryView.adapter
             setRecyclerListener { cell ->
                 val frame=(cell as? LinearLayout)?.getChildAt(0) as? FrameLayout
@@ -188,6 +198,13 @@ class LibraryView(
     }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun columnCount() = if (listMode) 1 else if (resources.configuration.screenWidthDp < 420) 2 else 3
+    private fun iconAction(key: String, description: Int, callback: () -> Unit) = ImageButton(context).apply {
+        setImageDrawable(MaterialSymbols.drawable(context,key,accent))
+        contentDescription = context.getString(description); tooltipText = contentDescription
+        background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(tint),null,rounded(Color.WHITE,24))
+        setPadding(dp(12),dp(12),dp(12),dp(12)); layoutParams = LayoutParams(dp(48),dp(48))
+        setOnClickListener { callback() }
+    }
     private fun label(value: String, size: Float) = TextView(context).apply { text = UiText.t(context,value); textSize = size; setTextColor(ink) }
     private fun rounded(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun action(value: String, description: String, callback: () -> Unit) = label(value, 14f).apply {

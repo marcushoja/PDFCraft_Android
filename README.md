@@ -19,7 +19,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 ### Library and reading
 
 - Private local library with cover thumbnails, reading progress and resume actions.
-- Switch between grid and list views; sort the library by name or date added, ascending or descending. View and sorting preferences are remembered.
+- Icon buttons switch between grid and compact list views and sort the library by name or date added, ascending or descending. List rows use small covers with a separate options button. View and sorting preferences are remembered.
 - Import PDFs through Android's file picker, **Open with** and **Share**. Originals remain unchanged.
 - Save each document's page, relative vertical position and zoom. SHA-256 deduplication preserves progress when the same file is imported again.
 - Five reading layouts: continuous vertical scrolling, single pages, side-by-side spreads, books with a separate cover, and gapless comic/webtoon scrolling. Independent right-to-left navigation for manga; text and page images are not mirrored. Mixed page sizes, unpaired final pages and saved positions are preserved when changing layouts or viewport size.
