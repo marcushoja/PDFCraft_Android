@@ -39,7 +39,12 @@ class LibraryView(
                 orientation = VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(10))
                 val frame = FrameLayout(context)
                 frame.background = rounded(surface, 14)
-                frame.addView(ImageView(context).apply { scaleType=ImageView.ScaleType.CENTER_CROP;setPadding(dp(5), dp(5), dp(5), dp(5)) }, FrameLayout.LayoutParams(-1,-1))
+                frame.clipToOutline=true
+                frame.addView(ImageView(context).apply {
+                    scaleType=ImageView.ScaleType.CENTER_CROP
+                    background=rounded(surface,10)
+                    clipToOutline=true
+                },FrameLayout.LayoutParams(-1,-1).apply { setMargins(dp(5),dp(5),dp(5),dp(5)) })
                 frame.addView(ImageView(context).apply {
                     setPadding(dp(12),dp(12),dp(12),dp(12))
                     setImageDrawable(MaterialSymbols.drawable(context,"more",muted))

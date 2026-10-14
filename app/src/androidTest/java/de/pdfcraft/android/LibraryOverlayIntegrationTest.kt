@@ -3,6 +3,7 @@ package de.pdfcraft.android
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.view.View
@@ -41,6 +42,13 @@ class LibraryOverlayIntegrationTest {
                 val cell=grid.adapter.getView(0,null,grid) as LinearLayout
                 val cover=(cell.getChildAt(0) as FrameLayout).getChildAt(0) as ImageView
                 assertEquals("Covers fill the tile without stretching",ImageView.ScaleType.CENTER_CROP,cover.scaleType)
+                assertTrue("The image itself must clip to rounded corners",cover.clipToOutline)
+                val outline=Outline()
+                cover.background.setBounds(0,0,200,300)
+                cover.background.getOutline(outline)
+                assertTrue(outline.canClip())
+                assertEquals(10*context.resources.displayMetrics.density,outline.radius,1f)
+                assertTrue((cell.getChildAt(0) as FrameLayout).clipToOutline)
                 val menu=(cell.getChildAt(0) as FrameLayout).getChildAt(1)
                 assertTrue(menu.layoutParams.width>=48*context.resources.displayMetrics.density)
                 assertNotNull(menu.contentDescription)
