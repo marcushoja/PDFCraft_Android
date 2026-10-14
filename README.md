@@ -1,10 +1,10 @@
 # PDFCraft Android
 
-[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
 Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
 
-The green heart in the library opens a friendly support message. The support page opens in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
+The green heart in the library opens a friendly support message. **Buy me a coffee** opens the existing Stripe support page in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
 
 ## Download the APK
 
