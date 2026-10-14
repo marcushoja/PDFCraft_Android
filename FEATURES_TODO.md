@@ -8,9 +8,10 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 - [ ] Auswahl über Seitengrenzen und Unterstützung für individuell gedrehte/geschrägte oder vertikale Schrift; solche Glyphen werden momentan ausgelassen. Scans brauchen weiterhin OCR.
 - [ ] Interaktive interne/externe PDF-Links samt Zurück-/Vorwärts-Verlauf.
 - [ ] Rand-Erkennung und automatische Randbeschneidung, ohne Dokumentänderungen.
-- [ ] Zwei-Seiten-Ansicht, RTL-Leserichtung und weitere Comic-/Buchlayouts.
+- [x] Zwei-Seiten-Ansicht, RTL-Leserichtung, Buchlayout mit separatem Deckblatt und lückenloses Comic-/Webtoon-Layout; echte Dokumentseitennummern und Lesestellen bleiben erhalten.
 - [ ] Automatisches Scrollen, Zoom-Sperre, Helligkeitssteuerung und konfigurierbare Vollbild-Shortcuts.
-- [ ] Geometrisch stärker gekrümmtes Papier-/GPU-Mesh für Page-Curl; der aktuelle Canvas-Effekt besitzt bereits eine fingergeführte Faltkante, Rückseite und Schatten.
+- [x] Geometrisch gekrümmtes, zylindrisches Bitmap-Mesh für Page-Curl, mit fingergeführter Faltung, Rückseite, Durchdruck und Schatten. Canvas-Mesh wird bei Hardwarebeschleunigung über den GPU-Pfad gezeichnet.
+- [ ] Animiertes Umblättern ganzer Doppelseiten und tief gezoomter Seiten; der Mesh-Curl ist derzeit auf ungezoomte Einzelseiten begrenzt. Kein eigener OpenGL-Surface-Renderer.
 - [ ] Hochauflösendes gekacheltes Rendering für tiefen Zoom und sehr große Seiten.
 - [ ] Verbesserte Lesereihenfolge bei mehrspaltigen oder komplexen PDFs, Layouttests für CJK/RTL und vertikalen Text.
 - [ ] Optional durchgehender Reflow über Seitengrenzen statt seitenweiser Textnavigation.
@@ -29,7 +30,7 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 
 - [ ] Bestehenden PDF-Text wirklich bearbeiten und neue Inhalte layouttreu setzen.
 - [ ] Direkt platzierbare Formen, Stempel, Freihand-Notizen und Bild-/Text-Anmerkungen.
-- [ ] Farbpalette und Auswahl-Werkzeug für Markierungen, auch auf gedrehten Seiten und über Zeilen hinweg.
+- [x] Farbpalette und direkte Glyphenauswahl für Markierungen, auch auf gedrehten Seiten und über Zeilen hinweg.
 - [ ] Kommentar-Threads, Antworten, Bearbeiten/Löschen vorhandener Annotationen und Kommentar-Export.
 - [ ] Undo/Redo für PDF-Bearbeitung mit sicherer inkrementeller/atomarer Speicherung und Crash-Recovery.
 - [ ] Bei Seitenentnahme/-löschung sämtliche Links, Seitenlabels, Inhaltsverzeichnis- und Formularreferenzen korrekt neu zuordnen.
@@ -48,6 +49,7 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 ## Konvertierung, OCR und professionelle Workflows
 
 - [ ] Vollständig lokale OCR für Scans, inklusive mehrsprachiger Modelle und durchsuchbarer PDF-Ausgabe.
+  - Bewusst nicht als kleiner Zusatz in diesem Update umgesetzt: Dafür sind eine OCR-Engine, lokale Sprachmodelle, ein verlässlicher Textlayer-Export sowie eigene Speicher-/Abbruchtests notwendig. Keine Cloud-OCR oder scheinbar durchsuchbare Bild-PDF als Ersatz.
 - [ ] Office-Dateien nach PDF und layouttreuer Word-/Excel-/Bild-/Text-Export.
 - [ ] Sichere Schwärzung und Dokumentbereinigung. **Seitenlöschen oder optisches Überdecken ist keine sichere Schwärzung.**
 - [ ] PDF/A, PDF/X und PDF/UA, Preflight, Barrierefreiheitsprüfung sowie Tag-/Lesereihenfolge-Bearbeitung.
@@ -59,7 +61,8 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 - [ ] Tests auf physischen Smartphones, insbesondere Android 8–11, niedriger RAM, SD-Karten und große Bibliotheken.
 - [ ] Vollständige Accessibility-Prüfung mit TalkBack, großen Schriften und RTL-Oberflächen.
 - [ ] Weitere Sprachen und vollständige Prüfung sämtlicher dynamischer/backendseitiger Fehlermeldungen.
-- [ ] Dauerhafter Release-Signaturschlüssel statt cachebasierter Vorschau-Signatur, Release-Härtung und optional Play-Store-Veröffentlichung.
+- [x] Dauerhafter Signaturschlüssel aus einem GitHub-Secret, mit Zertifikatprüfung vor der Veröffentlichung.
+- [ ] Release-Härtung und optional Play-Store-Veröffentlichung.
 
 ## Bereits umgesetzt bzw. Teil dieses Updates
 

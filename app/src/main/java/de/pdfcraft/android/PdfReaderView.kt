@@ -10,7 +10,6 @@ import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
-import android.graphics.Matrix
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.LinearGradient
@@ -40,7 +39,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-enum class ReadingMode { CONTINUOUS, SINGLE }
+enum class ReadingMode { CONTINUOUS, SINGLE, SPREAD, BOOK, COMIC }
 
 /** File-based PDF reader. Public methods and callbacks belong to the UI thread. */
 class PdfReaderView(context: Context) : View(context) {
@@ -76,6 +75,44 @@ class PdfReaderView(context: Context) : View(context) {
     val currentPage: Int get() = positionPage()
 
     private var mode = ReadingMode.CONTINUOUS
+    val readingMode: ReadingMode get() = mode
+    private var rightToLeft = false
+    val isRightToLeft: Boolean get() = rightToLeft
+    private val vertical: Boolean get() = mode == ReadingMode.CONTINUOUS || mode == ReadingMode.COMIC
+    private val spread: Boolean get() = mode == ReadingMode.SPREAD || mode == ReadingMode.BOOK
+    private var groups: List<List<Int>> = emptyList()
+    private var pageGroups = IntArray(0)
+    private var localLefts = FloatArray(0)
+    private var localTops = FloatArray(0)
+    private var focusedPage = 0
+    /** Zero-based document pages of the active group, always in logical reading order. */
+    val visiblePages: List<Int> get() = if (pageCount == 0) emptyList()
+        else if (spread) groups[pageGroups[currentPage]] else listOf(currentPage)
+    fun visiblePageNumbers(): List<Int> = visiblePages
+    private val pageGap: Float get() = if (mode == ReadingMode.COMIC) 0f else gap
+    private fun physicalForward(forward: Boolean): Boolean = forward != isRightToLeft
+    private fun groupTarget(forward: Boolean): Int? {
+        if (pageCount == 0) return null
+        val group = pageGroups[currentPage] + if (forward) 1 else -1
+        return groups.getOrNull(group)?.first()
+    }
+
+    fun nextPage() = navigatePages(true)
+    fun previousPage() = navigatePages(false)
+    /** Forward means next in document reading order; RTL changes physical motion, not page IDs. */
+    fun navigatePages(forward: Boolean, animated: Boolean = true) {
+        val target = groupTarget(forward) ?: return
+        if (animated) turnToPage(target) else goToPage(target)
+    }
+
+    fun setRightToLeft(enabled: Boolean) {
+        if (isRightToLeft == enabled) return
+        val saved = position()
+        stopAnimations()
+        rightToLeft = enabled
+        rebuildLayout()
+        setPosition(saved.first, saved.second)
+    }
     private var fitPage = false
     private var darkPages = false
     private var zoom = 1f
@@ -132,9 +169,47 @@ class PdfReaderView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
     private val scroller = OverScroller(context)
-    private val turnMatrix = Matrix()
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val backPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val meshPaper by lazy { Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) } }
+    private val meshColumns=64
+    private val meshRows=64
+    private val meshVertices=FloatArray((meshColumns+1)*(meshRows+1)*2)
+    private val meshFrontColors=IntArray((meshColumns+1)*(meshRows+1))
+    private val meshBackColors=IntArray(meshFrontColors.size)
+    private val meshVertex=FloatArray(5)
+    private val backsideInkFilter=ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
+        .025f,.025f,.025f,0f,235f, .025f,.025f,.025f,0f,235f,
+        .025f,.025f,.025f,0f,235f, 0f,0f,0f,1f,0f)))
+    private var backsideSource:Bitmap?=null
+    private var backsideImage:Bitmap?=null
+    private var nightMeshSource:Bitmap?=null
+    private var nightMeshImage:Bitmap?=null
+    private val meshFrontPaint=Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+    private fun frontTexture(source:Bitmap):Bitmap {
+        if(!darkPages) return source
+        if(nightMeshSource===source) nightMeshImage?.let { return it }
+        val scale=min(1f,1536f/max(source.width,source.height))
+        val image=try { Bitmap.createBitmap(max(1,(source.width*scale).toInt()),max(1,(source.height*scale).toInt()),Bitmap.Config.ARGB_8888) }
+            catch(_:OutOfMemoryError) { nightMeshSource=source;nightMeshImage=source;return source }
+        Canvas(image).drawBitmap(source,null,RectF(0f,0f,image.width.toFloat(),image.height.toFloat()),pagePaint)
+        nightMeshSource=source;nightMeshImage=image
+        return image
+    }
+
+    private fun backsideTexture(source:Bitmap?):Bitmap {
+        if(source==null) return meshPaper
+        if(backsideSource===source) backsideImage?.let { return it }
+        val scale=min(1f,512f/max(source.width,source.height))
+        val image=try { Bitmap.createBitmap(max(1,(source.width*scale).toInt()),max(1,(source.height*scale).toInt()),Bitmap.Config.ARGB_8888) }
+            catch(_:OutOfMemoryError) { backsideSource=source;backsideImage=meshPaper;return meshPaper }
+        // Pre-tint once: older Canvas mesh implementations ignore color filters with vertex colors.
+        Canvas(image).drawBitmap(source,null,RectF(0f,0f,image.width.toFloat(),image.height.toFloat()),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { colorFilter=backsideInkFilter })
+        backsideSource=source;backsideImage=image
+        return image
+    }
     private var curlAnimator: ValueAnimator? = null
     private val curlCorner = PointF()
     private val curlFinger = PointF()
@@ -194,7 +269,7 @@ class PdfReaderView(context: Context) : View(context) {
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (selectionGesture) return true
                 if (!scaleDetector.isInProgress && !scaledThisGesture) {
-                    if (mode == ReadingMode.SINGLE && zoom <= 1.01f) {
+                    if (!vertical && zoom <= 1.01f) {
                         if (gestureAxis != 2) return true
                         scrollYFloat += dy
                         constrainScroll()
@@ -215,10 +290,11 @@ class PdfReaderView(context: Context) : View(context) {
                 if (scaledThisGesture || scaleDetector.isInProgress) return false
                 if (mode == ReadingMode.SINGLE && zoom <= 1.01f && gestureAxis != 2) {
                     if (turning) settleCurl(turnProgress() > .32f ||
-                        (if (turnTo > turnFrom) -vx else vx) > 650f * resources.displayMetrics.density)
+                        (if (physicalForward(turnTo > turnFrom)) -vx else vx) > 650f * resources.displayMetrics.density)
                     return true
                 }
-                val verticalOnly = mode == ReadingMode.SINGLE && zoom <= 1.01f
+                if (spread && zoom <= 1.01f && gestureAxis == 1) return true
+                val verticalOnly = !vertical && zoom <= 1.01f
                 scroller.fling(scrollXFloat.toInt(), scrollYFloat.toInt(),
                     if (verticalOnly) 0 else (-vx).toInt(), (-vy).toInt(),
                     if (verticalOnly) scrollXFloat.toInt() else 0,
@@ -317,6 +393,8 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     fun close() {
+        backsideSource=null;backsideImage=null
+        nightMeshSource=null;nightMeshImage=null
         pendingAnnotationSource=null
         preparingAnnotations=false
         renderRevision=0
@@ -336,6 +414,11 @@ class PdfReaderView(context: Context) : View(context) {
         pageHeights = FloatArray(0)
         widths = FloatArray(0)
         heights = FloatArray(0)
+        localLefts = FloatArray(0)
+        localTops = FloatArray(0)
+        groups = emptyList()
+        pageGroups = IntArray(0)
+        focusedPage = 0
         starts = FloatArray(1)
         contentWidth = 0f
         contentHeight = 0f
@@ -381,8 +464,10 @@ class PdfReaderView(context: Context) : View(context) {
         if (this.mode == mode) return
         val saved = position()
         this.mode = mode
+        if(mode!=ReadingMode.SINGLE) { backsideSource=null;backsideImage=null;nightMeshSource=null;nightMeshImage=null }
         stopAnimations()
         rebuildLayout()
+        lastReported = null // Group labels can change even when the exact saved page does not.
         setPosition(saved.first, saved.second)
     }
 
@@ -398,6 +483,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun setDarkPages(enabled: Boolean) {
         darkPages = enabled
+        if(!enabled) { nightMeshSource=null;nightMeshImage=null }
         pagePaint.colorFilter = if (enabled) ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
             -1f, 0f, 0f, 0f, 255f,
             0f, -1f, 0f, 0f, 255f,
@@ -456,8 +542,10 @@ class PdfReaderView(context: Context) : View(context) {
         }
         if (!documentReady || pageCount == 0) return
         // Hit-test both axes: a page gap or a centered sheet margin is not text.
-        val coordinate = if (mode == ReadingMode.CONTINUOUS) scrollYFloat + y else scrollXFloat + x
-        val page = pageAt(coordinate, zoom)
+        val coordinate = if (vertical) scrollYFloat + y else scrollXFloat + x
+        val candidate = pageAt(coordinate, zoom)
+        val page = (if (spread) groups[pageGroups[candidate]] else listOf(candidate))
+            .firstOrNull { pageRect(it).contains(x, y) } ?: return
         val rect = pageRect(page)
         if (!rect.contains(x, y)) return
         clearTextSelection()
@@ -519,8 +607,10 @@ class PdfReaderView(context: Context) : View(context) {
         selectionEnd = max(start, end)
         textSelectionPage = page
         textSelection = selected
+        if(spread) focusedPage=page
         invalidate()
         onSelectionChanged?.invoke(page, textSelection)
+        if(spread) positionChanged()
     }
 
     /** Current handle centers in view-local coordinates; also useful for accessibility/tests. */
@@ -659,7 +749,7 @@ class PdfReaderView(context: Context) : View(context) {
     private fun changeZoom(value: Float, focusX: Float, focusY: Float) {
         stopAnimations()
         val next = finite(value, zoom).coerceIn(1f, 5f)
-        val anchorPage = pageAt(if (mode == ReadingMode.CONTINUOUS)
+        val anchorPage = visiblePages.firstOrNull { pageRect(it).contains(focusX, focusY) } ?: pageAt(if (vertical)
             scrollYFloat + focusY else scrollXFloat + focusX, zoom)
         val before = if (pageCount > 0) pageRect(anchorPage) else null
         val anchorX = if (before != null) (focusX - before.left) / max(1f, before.width()) else 0f
@@ -681,38 +771,65 @@ class PdfReaderView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         stopAnimations()
-        val saved = position()
+        // getWidth() already reports the new viewport here; interpreting old scroll slots
+        // with that width would jump to another spread during rotation/folding/fullscreen.
+        val saved = lastReported?.let { it.first to it.second } ?: position()
         super.onSizeChanged(w, h, oldw, oldh)
         rebuildLayout()
         if (pendingPosition != null) restorePendingPosition()
         else setPosition(saved.first, saved.second)
+        textSelection?.let { onSelectionChanged?.invoke(textSelectionPage,it) }
     }
 
     private fun rebuildLayout() {
         widths = FloatArray(pageCount)
         heights = FloatArray(pageCount)
         starts = FloatArray(pageCount + 1)
+        localLefts = FloatArray(pageCount)
+        localTops = FloatArray(pageCount)
+        groups = if (spread) PdfSpreadLayout.groups(pageCount, mode == ReadingMode.BOOK)
+            else (0 until pageCount).map { listOf(it) }
+        pageGroups = IntArray(pageCount)
+        groups.forEachIndexed { group, pages -> pages.forEach { pageGroups[it] = group } }
         maximumPageHeight = 0f
         if (width <= 0 || height <= 0) return
+        if (spread) {
+            groups.forEachIndexed { index, pages ->
+                val slot = if (isRightToLeft) groups.lastIndex - index else index
+                PdfSpreadLayout.sheets(pages, pageWidths, pageHeights, width.toFloat(), height.toFloat(), isRightToLeft).forEach { sheet ->
+                    widths[sheet.page] = sheet.width
+                    heights[sheet.page] = sheet.height
+                    starts[sheet.page] = slot * width.toFloat()
+                    localLefts[sheet.page] = sheet.left
+                    localTops[sheet.page] = sheet.top
+                    maximumPageHeight = max(maximumPageHeight, sheet.height)
+                }
+            }
+            starts[pageCount] = groups.size * width.toFloat()
+            updateContentSize()
+            constrainScroll()
+            return
+        }
         for (i in 0 until pageCount) {
-            val scale = if (fitPage) min(width / pageWidths[i], height / pageHeights[i])
+            val scale = if (fitPage && mode != ReadingMode.COMIC) min(width / pageWidths[i], height / pageHeights[i])
                 else width / pageWidths[i]
             widths[i] = pageWidths[i] * scale
             heights[i] = pageHeights[i] * scale
             maximumPageHeight = max(maximumPageHeight, heights[i])
-            starts[i + 1] = starts[i] + if (mode == ReadingMode.CONTINUOUS)
-                heights[i] + gap else max(width.toFloat(), widths[i])
+            starts[i + 1] = starts[i] + if (vertical)
+                heights[i] + pageGap else max(width.toFloat(), widths[i])
         }
+        if (!vertical && isRightToLeft) for (i in 0 until pageCount) starts[i] = (pageCount - 1 - i) * width.toFloat()
         updateContentSize()
         constrainScroll()
     }
 
     private fun updateContentSize() {
-        if (mode == ReadingMode.CONTINUOUS) {
+        if (vertical) {
             contentWidth = width * zoom
             // Leave enough trailing space to align even a short final page at the top.
             val lastStart = if (pageCount > 0) starts[pageCount - 1] * zoom else 0f
-            val lastEnd = if (pageCount > 0) (starts.last() - gap) * zoom else 0f
+            val lastEnd = if (pageCount > 0) (starts.last() - pageGap) * zoom else 0f
             contentHeight = max(lastStart + height, lastEnd)
         } else {
             contentWidth = max(width.toFloat(), starts.last() * zoom)
@@ -723,7 +840,7 @@ class PdfReaderView(context: Context) : View(context) {
     private fun maxScrollX() = max(0f, contentWidth - width)
     private fun maxScrollY(): Float = when {
         pageCount == 0 -> 0f
-        mode == ReadingMode.SINGLE -> max(0f, heights[positionPage()] * zoom - height)
+        !vertical -> max(0f, (if (spread) height.toFloat() else heights[positionPage()]) * zoom - height)
         // Avoid rounding (lastStart + viewport) - viewport below lastStart.
         else -> max(starts[pageCount - 1] * zoom, contentHeight - height)
     }
@@ -734,6 +851,11 @@ class PdfReaderView(context: Context) : View(context) {
 
     private fun pageAt(coordinate: Float, scale: Float = 1f): Int {
         if (pageCount == 0) return 0
+        if (!vertical) {
+            val slot = (coordinate / max(1f, width * scale)).toInt().coerceIn(0, groups.lastIndex)
+            val group = if (isRightToLeft) groups.lastIndex - slot else slot
+            return if (focusedPage in groups[group]) focusedPage else groups[group].first()
+        }
         var low = 0
         var high = pageCount
         while (low + 1 < high) {
@@ -747,21 +869,22 @@ class PdfReaderView(context: Context) : View(context) {
 
     private fun positionPage(): Int {
         if (turning) return turnFrom
-        return pageAt(if (mode == ReadingMode.CONTINUOUS)
+        return pageAt(if (vertical)
             scrollYFloat else scrollXFloat + width / 2f, zoom)
     }
 
     private fun position(): Pair<Int, Float> {
         if (pageCount == 0) return 0 to 0f
         val page = positionPage()
-        val origin = if (mode == ReadingMode.CONTINUOUS) starts[page] else 0f
+        val origin = if (vertical) starts[page] else 0f
         return page to ((scrollYFloat - origin * zoom) / max(1f, heights[page] * zoom)).coerceIn(0f, 1f)
     }
 
     private fun setPosition(page: Int, offset: Float) {
         if (pageCount == 0 || width == 0 || height == 0) return
         val p = page.coerceIn(0, pageCount - 1)
-        if (mode == ReadingMode.CONTINUOUS) {
+        focusedPage = p
+        if (vertical) {
             scrollYFloat = (starts[p] + heights[p] * offset.coerceIn(0f, 1f)) * zoom
             scrollXFloat = maxScrollX() / 2f
         } else {
@@ -785,8 +908,8 @@ class PdfReaderView(context: Context) : View(context) {
     private fun positionChanged() {
         if (pageCount == 0 || !documentReady || pendingPosition != null) return
         val p = position()
-        if ((textSelectionPage >= 0 && textSelectionPage != p.first) ||
-            (requestedSelectionPage >= 0 && requestedSelectionPage != p.first)) clearTextSelection()
+        if ((textSelectionPage >= 0 && textSelectionPage !in visiblePages) ||
+            (requestedSelectionPage >= 0 && requestedSelectionPage !in visiblePages)) clearTextSelection()
         val state = Triple(p.first, p.second, zoom)
         if (state != lastReported) {
             lastReported = state
@@ -798,10 +921,10 @@ class PdfReaderView(context: Context) : View(context) {
     private fun pageRect(page: Int): RectF {
         val w = widths[page] * zoom
         val h = heights[page] * zoom
-        val left = if (mode == ReadingMode.CONTINUOUS) (contentWidth - w) / 2f
-            else starts[page] * zoom + (width * zoom - w) / 2f
-        val top = if (mode == ReadingMode.CONTINUOUS) starts[page] * zoom
-            else max(0f, (height - h) / 2f)
+        val left = if (vertical) (contentWidth - w) / 2f
+            else starts[page] * zoom + if (spread) localLefts[page] * zoom else (width * zoom - w) / 2f
+        val top = if (vertical) starts[page] * zoom
+            else if (spread) localTops[page] * zoom else max(0f, (height - h) / 2f)
         return RectF(left - scrollXFloat, top - scrollYFloat,
             left + w - scrollXFloat, top + h - scrollYFloat)
     }
@@ -811,11 +934,11 @@ class PdfReaderView(context: Context) : View(context) {
         val level = ceil(zoom * 2f) / 2f
         var w = max(1f, widths[page] * level)
         var h = max(1f, heights[page] * level)
-        val coordinate = if (mode == ReadingMode.CONTINUOUS) scrollYFloat else scrollXFloat
-        val extent = if (mode == ReadingMode.CONTINUOUS) height else width
-        val visibleCount = max(1, pageAt(coordinate + extent, zoom) - pageAt(coordinate, zoom) + 1)
+        val coordinate = if (vertical) scrollYFloat else scrollXFloat
+        val extent = if (vertical) height else width
+        val visibleCount = if (spread) 2 else max(1, abs(pageAt(coordinate + extent, zoom) - pageAt(coordinate, zoom)) + 1)
         // Three fit-zoom sheets fit inside the cache, including both preloaded neighbors.
-        val pixelBudget = if (mode == ReadingMode.SINGLE && zoom <= 1.01f) 2_000_000.0
+        val pixelBudget = if (spread) 2_000_000.0 else if (mode == ReadingMode.SINGLE && zoom <= 1.01f) 2_000_000.0
             else min(4_000_000.0, 6_000_000.0 / visibleCount)
         val reduction = min(1.0, kotlin.math.sqrt(pixelBudget / (w.toDouble() * h)))
         w *= reduction.toFloat()
@@ -840,14 +963,15 @@ class PdfReaderView(context: Context) : View(context) {
             drawPreparationStatus(canvas)
             return
         }
-        val start = if (mode == ReadingMode.CONTINUOUS) scrollYFloat else scrollXFloat
-        val extent = if (mode == ReadingMode.CONTINUOUS) height else width
-        val first = pageAt(start, zoom)
-        val last = pageAt(start + extent, zoom)
+        val start = if (vertical) scrollYFloat else scrollXFloat
+        val extent = if (vertical) height else width
+        val endpoints = listOf(pageAt(start, zoom), pageAt(start + extent - .01f, zoom))
+        val candidates = if (spread) endpoints.flatMap { groups[pageGroups[it]] }.distinct()
+            else (endpoints.min()..endpoints.max()).toList()
         var request: RenderKey? = null
         var requestDistance = Int.MAX_VALUE
         val snapshots = cache.snapshot()
-        for (page in first..last) {
+        for (page in candidates) {
             val rect = pageRect(page)
             if (rect.right < 0 || rect.left > width || rect.bottom < 0 || rect.top > height) continue
             val key = renderKey(page)
@@ -939,15 +1063,13 @@ class PdfReaderView(context: Context) : View(context) {
             val polygon = listOf(PdfCurlGeometry.Point(rect.left, rect.top),
                 PdfCurlGeometry.Point(rect.right, rect.top), PdfCurlGeometry.Point(rect.right, rect.bottom),
                 PdfCurlGeometry.Point(rect.left, rect.bottom))
-            val front = polygonPath(geometry.clip(polygon, false))
             val patch = polygonPath(geometry.clip(polygon, true))
             val nx = geometry.nx
             val ny = geometry.ny
             val mx = geometry.mx
             val my = geometry.my
-            turnMatrix.setValues(geometry.matrixValues())
-            val back = Path(patch).apply { transform(turnMatrix) }
-            val curvature = min(gap * 4f, max(2f, geometry.length * .16f))
+            val mesh = PdfCurvedMesh(geometry)
+            val curvature = mesh.radius * 2f
             // Shadow cast by the lifted sheet onto the exposed underlying page.
             canvas.save()
             canvas.clipRect(rect)
@@ -957,29 +1079,32 @@ class PdfReaderView(context: Context) : View(context) {
             shadowPaint.alpha = 255
             canvas.drawRect(rect, shadowPaint)
             canvas.restore()
-            canvas.save()
-            canvas.clipPath(front)
-            drawSheet(first)
-            canvas.restore()
-            // The reflected corner contains C -> P: its paper backside stays under the finger.
-            canvas.save()
-            canvas.clipPath(back)
-            backPaint.color = if (darkPages) Color.rgb(65, 64, 60) else Color.rgb(239, 232, 214)
-            backPaint.alpha = 255
-            canvas.drawPath(back, backPaint)
-            canvas.save()
-            canvas.concat(turnMatrix)
-            backPaint.colorFilter = pagePaint.colorFilter
-            backPaint.alpha = 28
-            bitmapFor(first)?.let { canvas.drawBitmap(it, null, rect, backPaint) }
+            // The UV grid bends around an oblique cylinder with actual non-affine vertices.
+            // Canvas uses its hardware bitmap-mesh path when this View is hardware accelerated.
+            // No GL surface, layer-wide rotation, or reflected flat-page substitute is involved.
+            val columns = meshColumns
+            val rows = meshRows
+            val vertices = meshVertices
+            val frontColors = meshFrontColors
+            val backColors = meshBackColors
+            for (row in 0..rows) for (column in 0..columns) {
+                val index = row * (columns + 1) + column
+                mesh.projectInto(rect.left + rect.width() * column / columns,
+                    rect.top + rect.height() * row / rows,meshVertex)
+                vertices[index * 2] = meshVertex[0]
+                vertices[index * 2 + 1] = meshVertex[1]
+                val shade = (255 * meshVertex[4]).toInt()
+                frontColors[index] = Color.argb(if (meshVertex[3]>0f) 0 else 255, shade, shade, shade)
+                val base = if (darkPages) 65 else 239
+                val red = (base * meshVertex[4]).toInt()
+                backColors[index] = Color.argb(if (meshVertex[3]>0f) 255 else 0, red,
+                    (red * .97f).toInt(), (red * .90f).toInt())
+            }
+            canvas.drawBitmapMesh(frontTexture(bitmapFor(first) ?: meshPaper), columns, rows, vertices, 0,
+                frontColors, 0, meshFrontPaint)
             backPaint.colorFilter = null
             backPaint.alpha = 255
-            canvas.restore()
-            shadowPaint.shader = LinearGradient(mx, my, mx - nx * curvature, my - ny * curvature,
-                intArrayOf(Color.argb(110, 45, 36, 24), Color.argb(65, 255, 255, 255), Color.TRANSPARENT),
-                floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP)
-            canvas.drawPath(back, shadowPaint)
-            canvas.restore()
+            canvas.drawBitmapMesh(backsideTexture(bitmapFor(first)), columns, rows, vertices, 0, backColors, 0, backPaint)
             shadowPaint.shader = null
         }
 
@@ -1068,19 +1193,19 @@ class PdfReaderView(context: Context) : View(context) {
         // Input dispatchers may coalesce the final MOVE under rendering load. The release
         // coordinate is authoritative, otherwise a completed swipe could wrongly roll back.
         if ((event.actionMasked == MotionEvent.ACTION_MOVE || event.actionMasked == MotionEvent.ACTION_UP) && event.pointerCount == 1 &&
-            !selectionGesture && !scaledThisGesture && mode == ReadingMode.SINGLE && zoom <= 1.01f && pageCount > 0) {
+             !selectionGesture && !scaledThisGesture && !vertical && zoom <= 1.01f && pageCount > 0) {
             val dx = event.x - downX
             val dy = event.y - downY
             if (gestureAxis == 0 && max(abs(dx), abs(dy)) > 3f * resources.displayMetrics.density) {
                 gestureAxis = if (abs(dx) > abs(dy)) 1 else 2
                 if (gestureAxis == 1) {
-                    val target = gestureStartPage + if (dx < 0f) 1 else -1
-                    if (target in 0 until pageCount) beginCurl(target, downY)
+                    val target = groupTarget((dx < 0f) != isRightToLeft)
+                    if (target != null && !spread) beginCurl(target, downY)
                 }
             }
             if (gestureAxis == 1 && turning && curlAnimator == null) {
                 val rect = sheetRect(turnFrom)
-                val direction = if (turnTo > turnFrom) 1f else -1f
+                val direction = if (physicalForward(turnTo > turnFrom)) 1f else -1f
                 // C reflects exactly onto the actual touch, not onto a translated card edge.
                 val travel = ((curlCorner.x - event.x) * direction).coerceIn(.5f, rect.width() * 2f)
                 curlFinger.x = curlCorner.x - direction * travel
@@ -1093,6 +1218,10 @@ class PdfReaderView(context: Context) : View(context) {
         gestures.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             parent?.requestDisallowInterceptTouchEvent(false)
+            if (spread && zoom <= 1.01f && gestureAxis == 1 && !scaledThisGesture &&
+                !selectionGesture && event.actionMasked == MotionEvent.ACTION_UP && abs(event.x - downX) > width * .15f) {
+                navigatePages((event.x < downX) != isRightToLeft, false)
+            }
             if (turning && curlAnimator == null) {
                 settleCurl(event.actionMasked != MotionEvent.ACTION_CANCEL && turnProgress() > .32f)
             }
@@ -1112,19 +1241,19 @@ class PdfReaderView(context: Context) : View(context) {
         info.isScrollable = pageCount > 1
         if (pageCount > 0) {
             info.contentDescription = UiText.t(context,"PDF-Dokument, Seite ${currentPage + 1} von $pageCount")
-            if (currentPage > 0) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
-            if (currentPage < pageCount - 1) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
+            if (groupTarget(false) != null) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
+            if (groupTarget(true) != null) info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
         }
     }
 
     override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
-        val target = when (action) {
-            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD -> currentPage + 1
-            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD -> currentPage - 1
+        val forward = when (action) {
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD -> true
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD -> false
             else -> return super.performAccessibilityAction(action, arguments)
         }
-        if (target !in 0 until pageCount) return false
-        turnToPage(target)
+        if (groupTarget(forward) == null) return false
+        navigatePages(forward)
         return true
     }
 
@@ -1156,9 +1285,9 @@ class PdfReaderView(context: Context) : View(context) {
         turnTo = destination
         val rect = sheetRect(turnFrom)
         // Use a viewport corner on a vertically scrolled tall sheet, not an offscreen corner.
-        curlCorner.set(if (destination > turnFrom) rect.right else rect.left,
+        curlCorner.set(if (physicalForward(destination > turnFrom)) rect.right else rect.left,
             if (touchY < height / 2f) max(0f, rect.top) else min(height.toFloat(), rect.bottom))
-        curlFinger.set(curlCorner.x + if (destination > turnFrom) -.5f else .5f,
+        curlFinger.set(curlCorner.x + if (physicalForward(destination > turnFrom)) -.5f else .5f,
             curlCorner.y + if (touchY < height / 2f) .5f else -.5f)
         turning = true
         invalidate()
@@ -1169,9 +1298,9 @@ class PdfReaderView(context: Context) : View(context) {
         val rect = sheetRect(turnFrom)
         val sx = curlFinger.x
         val sy = curlFinger.y
-        val direction = if (turnTo > turnFrom) 1f else -1f
-        // A flat crease beyond the far edge removes the entire front and backside.
-        val ex = if (complete) curlCorner.x - direction * (rect.width() * 2f + gap) else curlCorner.x
+        val direction = if (physicalForward(turnTo > turnFrom)) 1f else -1f
+        // Carry the complete curved band beyond the far edge, not just its central crease.
+        val ex = if (complete) curlCorner.x - direction * (rect.width() * 2f + gap + 90f * Math.PI.toFloat()) else curlCorner.x
         val ey = curlCorner.y
         val animator = ValueAnimator.ofFloat(0f, 1f)
         curlAnimator = animator

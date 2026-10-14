@@ -6,7 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.content.FileProvider
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import android.app.AlertDialog
 import android.content.Intent
@@ -67,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private var loadingView: PdfLoadingView? = null
     private var outlinePanel: OutlinePanel? = null
     private var searchProgress: AlertDialog? = null
+    private var pageOverviewDialog:AlertDialog?=null
     private var importGeneration = 0
     private var pageSeek: SeekBar? = null
     private var importing = false
@@ -179,7 +179,8 @@ class MainActivity : ComponentActivity() {
     private fun showLibrary() {
         textService.cancelSearch(); searchProgress?.dismiss(); searchProgress = null
         persistPosition()
-        reader?.close(); reader = null; reflowView = null; reflow = false; unlocked?.file?.delete(); unlocked = null; documentId = null
+        pageOverviewDialog?.dismiss()
+        reader?.close(); reader = null; reflowView = null; reflow = false; discardUnlockedCopy(); documentId = null
         handler.removeCallbacks(savePosition)
         loadingView = null; outlinePanel = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -191,10 +192,10 @@ class MainActivity : ComponentActivity() {
         LocalizedDialogBuilder(this).setRawTitle(doc.name).setItems(arrayOf("Öffnen", "Umbenennen", "Teilen", "Aus Bibliothek entfernen")) { _, which ->
             if (which == 0) openDocument(doc.id)
             else if (which == 1) textInput("Dokument umbenennen", doc.name, rawHint = true) { name -> store.rename(doc.id, name); showLibrary() }
-            else if (which == 2) share(store.file(doc))
+            else if (which == 2) share(store.file(doc),displayName=doc.name)
             else LocalizedDialogBuilder(this).setTitle("Lokale Kopie entfernen?")
                 .setMessage("Lesefortschritt und Lesezeichen werden gelöscht. Die ursprüngliche PDF bleibt erhalten.")
-                .setNegativeButton("Abbrechen", null).setPositiveButton("Entfernen") { _, _ -> store.remove(doc.id); showLibrary() }.show()
+                .setNegativeButton("Abbrechen", null).setPositiveButton("Entfernen") { _, _ -> thumbnails.releaseDocument(store.file(doc));store.remove(doc.id); showLibrary() }.show()
         }.show()
     }
 
@@ -225,7 +226,8 @@ class MainActivity : ComponentActivity() {
 
     private fun openDocument(id: String) {
         val doc = store.get(id) ?: return
-        persistPosition(); reader?.close(); unlocked?.file?.delete(); handler.removeCallbacks(savePosition)
+        pageOverviewDialog?.dismiss()
+        persistPosition(); reader?.close(); discardUnlockedCopy(); handler.removeCallbacks(savePosition)
         documentId = id; store.markOpened(id); chromeVisible = true
         unlocked = null
         lastChromePage = -1
@@ -311,11 +313,16 @@ class MainActivity : ComponentActivity() {
         }
         bottom.addView(pageSeek, LinearLayout.LayoutParams(-1, dp(40)))
         val nav = row()
-        nav.addView(iconButton("back", "Vorherige Seite") { if (reflow) view.goToPage(view.currentPage - 1) else view.turnToPage(view.currentPage - 1) })
-        pageLabel = button("…") { jumpDialog() }.apply { contentDescription = l("Seitenzahl, zu Seite springen"); this.id = R.id.page_indicator }
+        nav.addView(iconButton("back", "Vorherige Seite") { if (reflow) view.goToPage(view.currentPage - 1) else view.navigatePages(false) }.apply { this.id=R.id.previous_page_button })
+        pageLabel = button("…") { jumpDialog() }.apply {
+            contentDescription = l("Seitenzahl, zu Seite springen");this.id=R.id.page_indicator
+            // Mirror navigation, not the logical numeric range (2–3 / 8 must not become 8 / 3–2).
+            textDirection=View.TEXT_DIRECTION_LTR;layoutDirection=View.LAYOUT_DIRECTION_LTR
+        }
         nav.addView(pageLabel, LinearLayout.LayoutParams(0, dp(48), 1f))
         nav.addView(iconButton("pages", "Seiten") { pagesDialog(false) })
-        nav.addView(iconButton("next", "Nächste Seite") { if (reflow) view.goToPage(view.currentPage + 1) else view.turnToPage(view.currentPage + 1) })
+        nav.addView(iconButton("next", "Nächste Seite") { if (reflow) view.goToPage(view.currentPage + 1) else view.navigatePages(true) }.apply { this.id=R.id.next_page_button })
+        nav.id=R.id.page_navigation
         for (index in 0 until nav.childCount) nav.getChildAt(index).background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22496650), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT), android.graphics.drawable.ColorDrawable(Color.WHITE))
         bottom.addView(nav); bottomBar = bottom; root.addView(bottom)
         view.onDocumentLoaded = { count ->
@@ -353,9 +360,11 @@ class MainActivity : ComponentActivity() {
 
     private fun updateReaderChrome() {
         val view = reader ?: return
+        if(view.pageCount==0) { lastChromePage=-1;pageLabel?.text="…";return }
         if (lastChromePage == view.currentPage) return
         lastChromePage = view.currentPage
-        pageLabel?.text = "${view.currentPage + 1} / ${view.pageCount}"
+        val visible=if(reflow) listOf(view.currentPage) else view.visiblePages
+        pageLabel?.text = if(visible.size>1) "${visible.min()+1}–${visible.max()+1} / ${view.pageCount}" else "${view.currentPage + 1} / ${view.pageCount}"
         if (pageSeek?.isPressed != true) pageSeek?.progress = view.currentPage
         val marked = store.get(documentId ?: "")?.bookmarks?.contains(view.currentPage) == true
         bookmarkButton?.isSelected = marked
@@ -410,7 +419,7 @@ class MainActivity : ComponentActivity() {
                 "open" -> pickPdf(); "dark" -> { persistPosition(); dark = !dark; prefs.edit().putBoolean("dark",dark).apply(); documentId?.let { openDocument(it) } }
                 "search" -> searchDialog(); "jump" -> jumpDialog(); "bookmark" -> bookmarkButton?.performClick()
                 "full" -> toggleChrome(); "text" -> setReflow(!reflow); "pages" -> pagesDialog(false)
-                "share" -> currentDocument()?.let { share(store.file(it)) }; "print" -> printDocument()
+                "share" -> currentDocument()?.let { share(store.file(it),displayName=it.name) }; "print" -> printDocument()
                 "signature" -> currentDocument()?.let { doc -> if (unlocked != null && unlocked?.owner != true) error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.") else signatureDialog(viewingFile(doc),doc.name.removeSuffix(".pdf")) }
                 "tools" -> toolsDialog(); "reload" -> { persistPosition(); documentId?.let { openDocument(it) } }
                 "info" -> propertiesDialog(); "screenshot" -> screenshotDocument(); "zoom" -> reader?.resetZoom()
@@ -421,6 +430,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pagesDialog(bookmarksOnly: Boolean) {
+        pageOverviewDialog?.dismiss()
         val doc = store.get(documentId ?: "") ?: return
         val view = reader ?: return
         val pages = if (bookmarksOnly) doc.bookmarks else (0 until view.pageCount).toList()
@@ -428,26 +438,57 @@ class MainActivity : ComponentActivity() {
             LocalizedDialogBuilder(this).setTitle("Meine Lesezeichen").setMessage("Tippe beim Lesen auf das Lesezeichen-Symbol, um eine Seite zu merken.").setPositiveButton("OK", null).show()
             return
         }
-        val grid = GridView(this).apply { numColumns = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 3; horizontalSpacing = dp(8); verticalSpacing = dp(12); setPadding(dp(16), dp(16), dp(16), dp(16)) }
+        val overviewHeight=(resources.displayMetrics.heightPixels*.8f-dp(120)).toInt().coerceAtLeast(dp(120))
+        val grid = GridView(this).apply {
+            id=R.id.page_overview_grid
+            numColumns=if(resources.configuration.screenWidthDp>=600) 5 else if(resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE) 4 else 3
+            horizontalSpacing=dp(8);verticalSpacing=dp(12);setPadding(dp(16),dp(16),dp(16),dp(16))
+            isFastScrollEnabled=true;clipToPadding=false
+            layoutDirection=if(prefs.getBoolean("rtl",false)) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+            // An explicit viewport prevents dialog wrap-content measurement from binding the entire PDF.
+            layoutParams=android.view.ViewGroup.LayoutParams(-1,overviewHeight)
+            setRecyclerListener { cell ->
+                val frame=(cell as? LinearLayout)?.getChildAt(0) as? FrameLayout
+                (frame?.getChildAt(1) as? ImageView)?.let { thumbnails.cancel(it) }
+            }
+        }
         grid.adapter = object : BaseAdapter() {
             override fun getCount() = pages.size
             override fun getItem(position: Int) = pages[position]
             override fun getItemId(position: Int) = pages[position].toLong()
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
                 val cell = (convertView as? LinearLayout) ?: column().apply {
-                    addView(ImageView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(132)))
+                    addView(FrameLayout(this@MainActivity).let { frame ->
+                        frame.addView(TextView(this@MainActivity).apply { text="PDF";textSize=22f;gravity=Gravity.CENTER;setTextColor(muted) },FrameLayout.LayoutParams(-1,-1))
+                        frame.addView(ImageView(this@MainActivity),FrameLayout.LayoutParams(-1,-1))
+                        frame
+                    },LinearLayout.LayoutParams(-1,dp(132)))
                     addView(text("", 14f, ink).apply { gravity = Gravity.CENTER; minHeight = dp(36) })
                 }
                 (cell.getChildAt(1) as TextView).text = "${pages[position] + 1}" + if (doc.bookmarks.contains(pages[position])) " ★" else ""
-                cell.setBackgroundColor(if (pages[position] == view.currentPage) if (dark) 0xff304d3d.toInt() else 0xffe0ede3.toInt() else card)
-                thumbnails.load(viewingFile(doc), pages[position], dp(120), cell.getChildAt(0) as ImageView)
+                cell.setBackgroundColor(if (pages[position] in view.visiblePages) if (dark) 0xff304d3d.toInt() else 0xffe0ede3.toInt() else card)
+                val image=(cell.getChildAt(0) as FrameLayout).getChildAt(1) as ImageView
+                val width=((resources.displayMetrics.widthPixels-dp(48))/grid.numColumns).coerceIn(dp(72),dp(150))
+                thumbnails.load(viewingFile(doc), pages[position],width,image,priority=10)
+                cell.contentDescription=getString(R.string.ui_overview_page,(pages[position]+1).toString())
                 return cell
             }
         }
+        val viewport=FrameLayout(this).apply { addView(grid,FrameLayout.LayoutParams(-1,overviewHeight)) }
         val dialog = LocalizedDialogBuilder(this).setTitle(if (bookmarksOnly) "Meine Lesezeichen" else "Seitenübersicht")
-            .setView(grid).setNegativeButton("Schließen", null).create()
+            .setView(viewport).setNegativeButton("Schließen", null).create()
+        pageOverviewDialog=dialog
         grid.setOnItemClickListener { _, _, index, _ -> view.goToPage(pages[index]); dialog.dismiss() }
+        grid.setSelection(pages.indexOf(view.currentPage).coerceAtLeast(0))
         dialog.show()
+        dialog.setOnDismissListener {
+            if(pageOverviewDialog===dialog) pageOverviewDialog=null
+            for(index in 0 until grid.childCount) {
+                val cell=grid.getChildAt(index) as? LinearLayout ?: continue
+                ((cell.getChildAt(0) as? FrameLayout)?.getChildAt(1) as? ImageView)?.let { thumbnails.cancel(it) }
+            }
+            grid.adapter=null
+        }
         dialog.window?.setLayout(-1, (resources.displayMetrics.heightPixels * 0.8).toInt())
     }
 
@@ -462,16 +503,28 @@ class MainActivity : ComponentActivity() {
         }
         content.addView(language,LinearLayout.LayoutParams(-1,dp(48)))
         content.addView(text("Seitenansicht", 14f, muted, true))
-        val modes = RadioGroup(this)
-        val continuous = RadioButton(this).apply { id = View.generateViewId(); text = l("Fortlaufend · vertikal scrollen"); setTextColor(ink) }
-        val single = RadioButton(this).apply { id = View.generateViewId(); text = l("Einzelseiten · horizontal wischen"); setTextColor(ink) }
-        modes.addView(continuous); modes.addView(single)
-        modes.check(if (prefs.getBoolean("single", false)) single.id else continuous.id)
-        content.addView(modes)
+        val layouts=listOf(ReadingMode.CONTINUOUS,ReadingMode.SINGLE,ReadingMode.SPREAD,ReadingMode.BOOK,ReadingMode.COMIC)
+        val modes=Spinner(this).apply {
+            id=R.id.reading_mode_spinner;contentDescription=getString(R.string.ui_reading_layout)
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,listOf(
+                getString(R.string.ui_continuous),getString(R.string.ui_single_pages),getString(R.string.ui_layout_spread),
+                getString(R.string.ui_layout_book),getString(R.string.ui_layout_comic)))
+            setSelection(layouts.indexOf(configuredReadingMode()).coerceAtLeast(0))
+        }
+        content.addView(modes,LinearLayout.LayoutParams(-1,dp(52)))
         fun toggle(label: String, key: String): Switch = Switch(this).apply {
             text = l(label); setTextColor(ink); minHeight = dp(52); isChecked = prefs.getBoolean(key, false); content.addView(this)
         }
         val fit = toggle("Ganze Seite einpassen", "fit")
+        content.addView(text(getString(R.string.ui_layout_hint),12f,muted,translate=false))
+        modes.onItemSelectedListener=object:AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long) {
+                fit.isEnabled=layouts[position] in listOf(ReadingMode.CONTINUOUS,ReadingMode.SINGLE)
+            }
+            override fun onNothingSelected(parent:AdapterView<*>?){}
+        }
+        val rtl=Switch(this).apply { id=R.id.rtl_switch;text=getString(R.string.ui_reading_rtl);setTextColor(ink);minHeight=dp(52);isChecked=prefs.getBoolean("rtl",false) }
+        content.addView(rtl)
         val theme = toggle("Dunkle Oberfläche", "dark")
         val pages = toggle("PDF-Farben für die Nacht invertieren", "dark_pages")
         val awake = toggle("Bildschirm beim Lesen wach halten", "awake")
@@ -496,7 +549,8 @@ class MainActivity : ComponentActivity() {
                 val selectedLanguage = languageTags[language.selectedItemPosition]
                 val languageChanged = selectedLanguage != LanguageContext.selected(this)
                 LanguageContext.select(this,selectedLanguage)
-                prefs.edit().putBoolean("single", modes.checkedRadioButtonId == single.id).putBoolean("fit", fit.isChecked)
+                val layout=layouts[modes.selectedItemPosition]
+                prefs.edit().putString("layout",layout.name).putBoolean("single",layout==ReadingMode.SINGLE).putBoolean("rtl",rtl.isChecked).putBoolean("fit", fit.isChecked)
                     .putBoolean("dark", theme.isChecked).putBoolean("dark_pages", pages.isChecked).putBoolean("awake", awake.isChecked)
                     .putBoolean("serif", serif.isChecked).putInt("font", font.progress + 14).apply()
                 val themeChanged = dark != theme.isChecked
@@ -509,16 +563,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyReaderSettings() {
-        reader?.setReadingMode(if (prefs.getBoolean("single", false)) ReadingMode.SINGLE else ReadingMode.CONTINUOUS)
+        reader?.setReadingMode(if(reflow) ReadingMode.CONTINUOUS else configuredReadingMode())
+        val rtl=prefs.getBoolean("rtl",false)
+        reader?.setRightToLeft(rtl)
+        pageSeek?.layoutDirection=if(rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        findViewById<View>(R.id.page_navigation)?.layoutDirection=if(rtl) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        findViewById<ImageView>(R.id.previous_page_button)?.setImageDrawable(MaterialSymbols.drawable(this,if(rtl) "next" else "back",accent))
+        findViewById<ImageView>(R.id.next_page_button)?.setImageDrawable(MaterialSymbols.drawable(this,if(rtl) "back" else "next",accent))
         reader?.setFitPage(prefs.getBoolean("fit", false))
         reader?.setDarkPages(prefs.getBoolean("dark_pages", false))
         reflowView?.setAppearance(dark, prefs.getInt("font", 20).toFloat(), prefs.getBoolean("serif", false))
         if (reader != null && prefs.getBoolean("awake", false)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        lastChromePage=-1;updateReaderChrome()
     }
+
+    private fun configuredReadingMode():ReadingMode=runCatching {
+        ReadingMode.valueOf(prefs.getString("layout",null) ?: if(prefs.getBoolean("single",false)) "SINGLE" else "CONTINUOUS")
+    }.getOrDefault(ReadingMode.CONTINUOUS)
 
     private fun currentDocument() = store.get(documentId ?: "")
     private fun viewingFile(doc: PdfDocument) = if (documentId == doc.id) unlocked?.file ?: store.file(doc) else store.file(doc)
+
+    private fun discardUnlockedCopy() {
+        unlocked?.file?.let { thumbnails.releaseDocument(it);it.delete() }
+        unlocked=null
+    }
 
     private fun handleOpenError(doc: PdfDocument, message: String) {
         if (unlocked != null) { error(message); showLibrary(); return }
@@ -564,6 +634,7 @@ class MainActivity : ComponentActivity() {
         reflow = enabled
         reader?.visibility = if (enabled) View.INVISIBLE else View.VISIBLE
         reflowView?.visibility = if (enabled) View.VISIBLE else View.GONE
+        applyReaderSettings()
         if (enabled) loadReflow(offset)
         else { textPage = -1; persistPosition() }
     }
@@ -821,9 +892,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun share(file: File, mime: String = "application/pdf") {
-        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
-        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = mime; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); clipData = android.content.ClipData.newRawUri("PDF", uri) }, l("PDF teilen")))
+    private fun share(file: File, mime: String = "application/pdf",displayName:String=file.name) {
+        startActivity(Intent.createChooser(PdfSharing.intent(this,file,displayName,mime), l("PDF teilen")))
     }
 
     private fun printDocument() {
@@ -873,5 +943,5 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() { persistPosition(); super.onPause() }
     override fun onSaveInstanceState(outState: Bundle) { persistPosition(); outState.putString("document", documentId); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { persistPosition(); importGeneration++; searchProgress?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); unlocked?.file?.delete(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
+    override fun onDestroy() { persistPosition(); importGeneration++; searchProgress?.dismiss(); pageOverviewDialog?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); discardUnlockedCopy(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
 }

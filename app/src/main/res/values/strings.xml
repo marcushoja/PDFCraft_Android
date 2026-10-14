@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_layout_hint">Spreads fit together; comics fit the width. Curved page turning requires single pages without zoom.</string>
+    <string name="ui_reading_layout">Reading layout</string>
+    <string name="ui_layout_spread">Two pages · side by side</string>
+    <string name="ui_layout_book">Book · separate cover</string>
+    <string name="ui_layout_comic">Comic / webtoon · gapless vertical</string>
+    <string name="ui_reading_rtl">Read right to left · manga</string>
+    <string name="ui_overview_page">Page %1$s</string>
     <string name="ui_annotations_preparing">Preparing annotations…</string>
     <string name="ui_annotation_prepare_failed">Some annotations could not be displayed. The PDF remains unchanged.</string>
     <string name="ui_pdf_select_no_text">No selectable text on this page. Scans require OCR.</string>

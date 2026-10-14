@@ -67,11 +67,11 @@ class PdfRenderedSelectionTest {
         }
     }
 
-    private fun pageRect(reader: PdfReaderView): RectF {
+    private fun pageRect(reader: PdfReaderView, page: Int = 0): RectF {
         // Keep test-only layout introspection out of the reader's production API.
         val method = PdfReaderView::class.java.getDeclaredMethod("pageRect", Int::class.javaPrimitiveType)
         method.isAccessible = true
-        return method.invoke(reader, 0) as RectF
+        return method.invoke(reader, page) as RectF
     }
 
     private fun glyphPoint(reader: PdfReaderView, glyph: PdfTextGlyph): PointF {
@@ -197,5 +197,34 @@ class PdfRenderedSelectionTest {
         } finally { release.countDown() }
         Thread.sleep(500)
         instrumentation.runOnMainSync { assertEquals(0, callbacks); assertNull(reader.selectedTextRange) }
+    }
+
+    @Test fun rtlSpreadHitTestsSecondPageAndPreservesExtractedTextOrder() = withReader { reader, file ->
+        val text = PdfPageTextExtractor.extract(file, 1)
+        val selected = CountDownLatch(1)
+        lateinit var point: PointF
+        instrumentation.runOnMainSync {
+            reader.setReadingMode(ReadingMode.SPREAD)
+            reader.setRightToLeft(true)
+            assertEquals(listOf(0, 1), reader.visiblePages)
+            assertTrue(pageRect(reader, 1).left < pageRect(reader, 0).left)
+            val rect = pageRect(reader, 1)
+            val glyph = text.glyphs[1].bounds
+            point = PointF(rect.left + glyph.centerX() * rect.width(), rect.top + glyph.centerY() * rect.height())
+            reader.onSelectionChanged = { page, selection -> if (page == 1 && selection != null) selected.countDown() }
+        }
+        val down = longPress(reader, point)
+        assertTrue("Left sheet in RTL must select document page 1", selected.await(10, TimeUnit.SECONDS))
+        instrumentation.runOnMainSync {
+            touch(reader, MotionEvent.ACTION_UP, point, down)
+            assertEquals(1, reader.textSelectionPage)
+            assertEquals("Bookmarks must follow the selected sheet, not the other half",1,reader.currentPage)
+            assertEquals("Second", reader.selectedTextRange!!.text)
+            assertTrue(reader.selectAllText())
+            assertEquals("Second page text", reader.selectedTextRange!!.text)
+            reader.resetZoom()
+            assertNotNull(reader.selectedTextRange)
+            assertFalse(reader.selectionContentRect().isEmpty)
+        }
     }
 }

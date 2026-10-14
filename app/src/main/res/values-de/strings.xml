@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_layout_hint">Doppelseiten werden gemeinsam eingepasst, Comics auf Breite. Gekrümmtes Umblättern nur bei ungezoomten Einzelseiten.</string>
+    <string name="ui_reading_layout">Leselayout</string>
+    <string name="ui_layout_spread">Zwei Seiten · nebeneinander</string>
+    <string name="ui_layout_book">Buch · separates Deckblatt</string>
+    <string name="ui_layout_comic">Comic / Webtoon · lückenlos vertikal</string>
+    <string name="ui_reading_rtl">Leserichtung rechts nach links · Manga</string>
+    <string name="ui_overview_page">Seite %1$s</string>
     <string name="ui_annotations_preparing">Anmerkungen vorbereiten…</string>
     <string name="ui_annotation_prepare_failed">Einige Anmerkungen konnten nicht angezeigt werden. Die PDF bleibt unverändert.</string>
     <string name="ui_pdf_select_no_text">Kein auswählbarer Text auf dieser Seite. Scans benötigen OCR.</string>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_layout_hint">Les doubles pages sont ajustées ensemble, les BD en largeur. Le pli animé nécessite une page simple sans zoom.</string>
+    <string name="ui_reading_layout">Disposition de lecture</string>
+    <string name="ui_layout_spread">Deux pages · côte à côte</string>
+    <string name="ui_layout_book">Livre · couverture séparée</string>
+    <string name="ui_layout_comic">BD / webtoon · défilement sans espaces</string>
+    <string name="ui_reading_rtl">Lecture de droite à gauche · manga</string>
+    <string name="ui_overview_page">Page %1$s</string>
     <string name="ui_annotations_preparing">Préparation des annotations…</string>
     <string name="ui_annotation_prepare_failed">Certaines annotations ne peuvent pas être affichées. Le PDF reste inchangé.</string>
     <string name="ui_pdf_select_no_text">Aucun texte sélectionnable sur cette page. Les scans nécessitent un OCR.</string>

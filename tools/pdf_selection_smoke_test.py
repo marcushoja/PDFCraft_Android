@@ -1,7 +1,7 @@
 """Long-press rendered PDF text, copy it, then mark the precise selection."""
 import re,time
 from pathlib import Path
-from smoke_test import adb,hierarchy,tap,wait_hierarchy,screenshot
+from smoke_test import adb,hierarchy,tap,wait_hierarchy,screenshot,select_reading_mode,check
 
 def long_press_text():
     nodes=list(wait_hierarchy(lambda ns:any(n.get('resource-id')=='de.pdfcraft.android:id/pdf_canvas' for n in ns)).iter('node'))
@@ -40,8 +40,8 @@ def main():
     if any(n.get('text')=='PDF-Ansicht' for n in hierarchy().iter('node')):
         tap(text='PDF-Ansicht');tap(description='Leseoptionen')
     tap(description='Einstellungen')
-    tap(text='Einzelseiten · horizontal wischen')
-    from smoke_test import check
+    select_reading_mode('Einzelseiten · horizontal wischen')
+    check('Leserichtung rechts nach links · Manga',False)
     check('Ganze Seite einpassen',True)
     tap(text='Übernehmen')
     tap(description='Seitenzahl, zu Seite springen');adb('shell','input','text','1');tap(text='Öffnen')

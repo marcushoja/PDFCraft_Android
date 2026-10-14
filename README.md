@@ -19,7 +19,10 @@ Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht ei
 - PDFs über die Android-Dateiauswahl, „Öffnen mit“ und „Teilen“ importieren.
 - Lesestelle pro Dokument speichern: Seite, relative vertikale Position und Zoom. Identische Dateien werden anhand ihres SHA-256-Hashes erkannt; erneuter Import behält den Fortschritt.
 - Fortlaufend vertikal lesen oder horizontal durch Einzelseiten wischen.
-- Fingergeführtes Umblättern: sichtbare gefaltete Papierrückseite unter dem Finger, gespiegelter leichter Durchdruck, Faltkante und Schatten; Abschluss oder Zurückrollen beim Loslassen. Nachbarseiten werden vorgeladen.
+- Fingergeführtes Umblättern mit nichtlinear gekrümmtem, zylindrischem Bitmap-Mesh: sichtbare Papierrückseite, gespiegelter leichter Durchdruck, Faltkante und Schatten; Abschluss oder Zurückrollen beim Loslassen. Das Mesh nutzt den hardwarebeschleunigten Canvas-Pfad, wenn verfügbar; es ist kein eigener OpenGL-Renderer. Animation derzeit für ungezoomte Einzelseiten, Doppelseiten werden ohne Curl gewechselt.
+- Fünf Leserlayouts unter **Einstellungen → Seitenansicht**: fortlaufend, Einzelseiten, zwei Seiten nebeneinander, Buch mit separatem Deckblatt, Comic/Webtoon ohne Zwischenräume. Unabhängige RTL-Leserichtung für Manga, passende Wischrichtung und Navigation; Text und Seitenbilder werden nicht gespiegelt. Gemischte Seitengrößen, ungerade Endseiten und Lesestellen beim Layout-/Größenwechsel werden berücksichtigt.
+- Schnellere Seitenübersicht: begrenzter sichtbarer Ausschnitt, abbrechbare Vorschau-Aufträge, Wiederverwendung nativer PDF-Renderer, RAM-/Plattencache und keine vollständige Anmerkungsprüfung pro Thumbnail. Übersicht startet an der aktuellen Lesestelle; Bibliotheksmenüs haben einen transparenten Hintergrund über dem Cover.
+- Teilen verwendet den ursprünglichen bzw. in der Bibliothek gewählten Dokumentnamen statt der internen UUID, ohne große PDFs dafür nochmals zu kopieren.
 - Pinch-Zoom, Doppeltipp-Zoom, Seitenbreite oder ganze Seite einpassen.
 - Seitenübersicht, direkter Seitensprung, eigene Lesezeichen.
 - Echtes Vollbild inklusive Systemleisten, mit einer Schaltfläche zum Verlassen; dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.

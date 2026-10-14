@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="ui_layout_hint">Las páginas dobles se ajustan juntas y los cómics al ancho. El giro curvado requiere páginas individuales sin zoom.</string>
+    <string name="ui_reading_layout">Diseño de lectura</string>
+    <string name="ui_layout_spread">Dos páginas · una al lado de otra</string>
+    <string name="ui_layout_book">Libro · portada separada</string>
+    <string name="ui_layout_comic">Cómic / webtoon · vertical sin espacios</string>
+    <string name="ui_reading_rtl">Leer de derecha a izquierda · manga</string>
+    <string name="ui_overview_page">Página %1$s</string>
     <string name="ui_annotations_preparing">Preparando anotaciones…</string>
     <string name="ui_annotation_prepare_failed">No se pudieron mostrar algunas anotaciones. El PDF no se modifica.</string>
     <string name="ui_pdf_select_no_text">No hay texto seleccionable en esta página. Los escaneos requieren OCR.</string>

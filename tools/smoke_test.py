@@ -62,6 +62,11 @@ def check(label, checked=True):
         tap(text=label)
 
 
+def select_reading_mode(label):
+    tap(description="Leselayout")
+    tap(text=label)
+
+
 def screenshot(directory, name):
     data = adb("exec-out", "screencap", "-p", binary=True)
     # Recent Android builds may prepend a multiple-display warning to stdout.
@@ -86,7 +91,8 @@ def main():
         tap(text="PDF-Ansicht")
         tap(description="Leseoptionen")
     tap(description="Einstellungen")
-    check("Fortlaufend · vertikal scrollen")
+    select_reading_mode("Fortlaufend · vertikal scrollen")
+    check("Leserichtung rechts nach links · Manga",False)
     check("Ganze Seite einpassen", False)
     tap(text="Übernehmen")
     tap(description="Leseoptionen")
@@ -131,7 +137,7 @@ def main():
     tap(description="PDF-Dokument")
     tap(description="Leseoptionen")
     tap(description="Einstellungen")
-    check("Einzelseiten · horizontal wischen")
+    select_reading_mode("Einzelseiten · horizontal wischen")
     check("Ganze Seite einpassen")
     check("Dunkle Oberfläche")
     check("PDF-Farben für die Nacht invertieren")

@@ -40,7 +40,14 @@ class LibraryView(
                 val frame = FrameLayout(context)
                 frame.background = rounded(surface, 14)
                 frame.addView(ImageView(context).apply { setPadding(dp(5), dp(5), dp(5), dp(5)) }, FrameLayout.LayoutParams(-1,-1))
-                frame.addView(ImageView(context).apply { setPadding(dp(12),dp(12),dp(12),dp(12)); setImageDrawable(MaterialSymbols.drawable(context,"more",muted)); background = rounded(tint,14); contentDescription = UiText.t(context,"Dokumentoptionen") }, FrameLayout.LayoutParams(dp(48),dp(48),Gravity.END or Gravity.TOP))
+                frame.addView(ImageView(context).apply {
+                    setPadding(dp(12),dp(12),dp(12),dp(12))
+                    setImageDrawable(MaterialSymbols.drawable(context,"more",muted))
+                    background=android.graphics.drawable.RippleDrawable(
+                        android.content.res.ColorStateList.valueOf(0x33507453),
+                        android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),rounded(Color.WHITE,14))
+                    contentDescription = UiText.t(context,"Dokumentoptionen")
+                }, FrameLayout.LayoutParams(dp(48),dp(48),Gravity.END or Gravity.TOP))
                 addView(frame, LayoutParams(-1, dp(174)))
                 addView(label("", 15f).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; minHeight = dp(44); setPadding(dp(2),dp(5),dp(2),0) })
                 addView(label("", 12f).apply { setTextColor(muted) })
@@ -84,6 +91,10 @@ class LibraryView(
             numColumns = if (resources.configuration.screenWidthDp < 420) 2 else 3
             horizontalSpacing = dp(8); verticalSpacing = dp(8); setPadding(dp(12),dp(8),dp(12),dp(8))
             clipToPadding = false; adapter = this@LibraryView.adapter
+            setRecyclerListener { cell ->
+                val frame=(cell as? LinearLayout)?.getChildAt(0) as? FrameLayout
+                (frame?.getChildAt(0) as? ImageView)?.let { thumbnails.cancel(it) }
+            }
         }
         frame.addView(grid, FrameLayout.LayoutParams(-1,-1))
         frame.addView(empty, FrameLayout.LayoutParams(-1,-1))

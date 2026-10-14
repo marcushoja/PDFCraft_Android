@@ -1,4 +1,10 @@
 <resources>
+    <item name="reading_mode_spinner" type="id" />
+    <item name="rtl_switch" type="id" />
+    <item name="page_overview_grid" type="id" />
+    <item name="previous_page_button" type="id" />
+    <item name="next_page_button" type="id" />
+    <item name="page_navigation" type="id" />
     <item name="pdf_loading" type="id" />
     <item name="pdf_canvas" type="id" />
     <item name="reflow_canvas" type="id" />

@@ -18,9 +18,9 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 ## Automatisch erfolgreich
 
 - Debug-APK und Instrumentation-APK gebaut.
-- 22 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung und Page-Curl-Geometrie.
+- 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 67 Integrationstests einschließlich optionalem Großdatei-Benchmark auf Android 12 / API 31 und Android API 37 (Fold-Emulator):
+- 84 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator):
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -31,6 +31,10 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
   - fingergeführte Faltung mit sichtbarer Rückseite, Abbruch und endgültiger Position beim Loslassen;
   - abbrechbare Suche und Import, Ladefortschritt, aufklappbare Kapitelkarten;
   - Deutsch/Englisch/Französisch/Spanisch, Template- und Dateinamen-Erhaltung sowie Autor-Credits.
+  - Doppelseiten, separates Deckblatt, ungerade Endseiten, RTL-Wischen/Glyphenauswahl, gemischte Seitengrößen und Lesestellen nach Größenwechsel;
+  - sichtbare gekrümmte Papierrückseite und Nachtfarben auch auf älterem Canvas;
+  - eine native Renderer-Instanz für acht Vorschauen, Auftragsabbruch, stabile wiederholte Bindung, 300-Seiten-Übersicht mit begrenzter Anzahl sichtbarer Zellen;
+  - transparenter Cover-Menühintergrund und ursprüngliche Unicode-Dateinamen beim Teilen, einschließlich unveränderter Dateiinhalte.
 
 ## Bedienung geprüft
 
@@ -42,6 +46,8 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 
 `tools/pdf_selection_smoke_test.py` prüft langes Drücken auf der gerenderten Seite, das native Kopieren-/Markieren-Menü und eine exakte ausgewählte Markierung. Integrationstests prüfen verschiebbare Griffe, Zoom, Original-Berechtigungen auch nach Entschlüsselung, Zwischenablage-Inhalt und native Glyphen-/Beschnittkoordinaten bei allen vier Seitendrehungen. Individuell gedrehte/geschrägte Schrift, vertikale Schrift und seitenübergreifende Auswahl sind nicht implementiert.
 
+`tools/layouts_smoke_test.py` prüft die Auswahl der neuen Layouts über die echten Einstellungen, Doppelseiten-Navigation, separate Buchdeckblätter, RTL-Wischrichtung, ungerade Endseiten und die Wiederherstellung nach Prozessneustart.
+
 ## Große Bild-PDFs
 
 `PdfLargeLoadBenchmark` nutzt optional eine synthetische PDF mit 32 JPEG-Seiten und 150,14 MiB (nicht im Repository). Auf dem API-37-Emulator: erste native Seite **2.341 ms**, Hintergrundprüfung abgeschlossen nach **7.393 ms**; Wiederöffnen mit Cache: **129 ms**, Seitengrößen nach **60 ms**. Diese Werte messen die Reader-Pipeline, **ohne Import/Kopieren und ohne UIAutomator-Overhead**; sie sind keine Zusage für beliebige PDFs oder Geräte.
@@ -49,6 +55,14 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 Die Testdatei lässt sich mit `python3 tools/create_large_image_pdf.py --output /tmp/opencode/images-150mb.pdf` erzeugen (Pillow erforderlich) und als `cache/images-150mb.pdf` in die Debug-App übertragen. Dann den Test `de.pdfcraft.android.PdfLargeLoadBenchmark` ausführen; Messwerte stehen unter `PDF_LARGE_BENCH` im Logcat. Das Skript überschreibt keine vorhandenen Dateien.
 
 Die 14 Cache-Tests prüfen unter anderem Parallelzugriffe, geänderte Dateien, beschädigte Cache-Einträge, Referenzschutz, separate Druckdarstellungen und den Ausschluss entschlüsselter Ansichten. Fehlt die große Testdatei, wird ausschließlich der optionale Benchmark übersprungen.
+
+`PdfLargeThumbnailBenchmark` misst zusätzlich acht Vorschauen derselben 150-MiB-Bild-PDF bei leerem Thumbnail-Cache und beim erneuten Laden vom Plattencache. Er prüft genau einen nativen Dokument-Open beim ersten Durchlauf und keinen beim zweiten. Beide optionalen Großdatei-Tests werden ohne die synthetische Testdatei übersprungen; keine Behauptung über die Geschwindigkeit beliebiger PDFs oder Geräte.
+
+Gemessener API-37-Durchlauf: erste Vorschau **228 ms**, acht Vorschauen **777 ms**,
+**ein** Renderer-Open; erneutes Laden der acht Vorschauen vom Plattencache **13 ms**,
+**kein** Renderer-Open. „Leer“ bezieht sich auf den App-Thumbnail-Cache, nicht auf den
+Betriebssystem-Dateicache. Auf API 31 wurden die zwei optionalen Großdatei-Tests
+ohne Fixture übersprungen; alle übrigen Integrationstests wurden ausgeführt.
 
 **Zwischenablage-Test:** Headless-Emulatoren können den App-Clip durch einen leeren „host clipboard“-Clip ersetzen. Für die isolierten Clipboard-Läufe wurde die Emulator-Brücke über `-append-userspace-opt androidboot.qemu=0` bei einem Kaltstart deaktiviert, ohne die Host-Zwischenablage oder globale Emulator-Einstellungen zu verändern. Der Test verlangt den tatsächlichen Text „Hello“ und die Clip-Bezeichnung „PDF“, nicht nur einen erfolgreichen Menüaufruf. Grundlage: [AOSP ClipboardService](https://android.googlesource.com/platform/frameworks/base/+/android-12.0.0_r1/services/core/java/com/android/server/clipboard/ClipboardService.java).
 

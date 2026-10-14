@@ -64,6 +64,7 @@ class PdfCurlIntegrationTest {
                 if(Color.red(c)>180 && Color.green(c)<60 && Color.blue(c)<60) front++
                 if(Color.red(c)>140 && Color.green(c)>130 && Color.blue(c)>110) backside++
             }
+            if(backside<=30) File(context.cacheDir,"integration-curl-debug-${android.os.Build.VERSION.SDK_INT}.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG,100,it) }
             image.recycle()
             assertTrue("Original colored front should remain visible",front>30)
             assertTrue("A separate paper backside must be visible, not a translated card",backside>30)
@@ -71,7 +72,26 @@ class PdfCurlIntegrationTest {
         }
         Thread.sleep(450)
         instrumentation.waitForIdleSync()
-        instrumentation.runOnMainSync { assertEquals(0,reader.currentPage);reader.turnToPage(1) }
+        instrumentation.runOnMainSync {
+            assertEquals(0,reader.currentPage)
+            reader.setDarkPages(true)
+            val w=reader.width.toFloat();val h=reader.height.toFloat()
+            event(MotionEvent.ACTION_DOWN,400,w*.84f,h*.78f)
+            event(MotionEvent.ACTION_MOVE,500,w*.70f,h*.74f)
+            event(MotionEvent.ACTION_MOVE,600,w*.48f,h*.70f)
+            val image=Bitmap.createBitmap(reader.width,reader.height,Bitmap.Config.ARGB_8888)
+            reader.draw(Canvas(image))
+            var cyan=0
+            for(y in image.height/4 until image.height*4/5 step 8) for(x in image.width/4 until image.width*4/5 step 8) {
+                val pixel=image.getPixel(x,y)
+                if(Color.red(pixel)<80 && Color.green(pixel)>180 && Color.blue(pixel)>180) cyan++
+            }
+            image.recycle()
+            assertTrue("Night inversion must also apply to curved mesh pixels on older Android",cyan>30)
+            event(MotionEvent.ACTION_CANCEL,700,w*.48f,h*.70f)
+            reader.setDarkPages(false)
+            reader.turnToPage(1)
+        }
         Thread.sleep(500)
         instrumentation.waitForIdleSync()
         instrumentation.runOnMainSync {
@@ -85,7 +105,25 @@ class PdfCurlIntegrationTest {
         }
         Thread.sleep(500)
         instrumentation.waitForIdleSync()
-        instrumentation.runOnMainSync { assertEquals("Final release position must complete the swipe",1,reader.currentPage);reader.close();activity.finish() }
+        instrumentation.runOnMainSync {
+            assertEquals("Final release position must complete the swipe",1,reader.currentPage)
+            reader.setRightToLeft(true)
+            reader.goToPage(0)
+            val w = reader.width.toFloat(); val h = reader.height.toFloat()
+            event(MotionEvent.ACTION_DOWN,2000,w*.16f,h*.75f)
+            event(MotionEvent.ACTION_MOVE,2200,w*.52f,h*.70f)
+            assertEquals("RTL fold still holds the logical source page",0,reader.currentPage)
+            val cornerField = PdfReaderView::class.java.getDeclaredField("curlCorner").apply { isAccessible = true }
+            val corner = cornerField.get(reader) as android.graphics.PointF
+            assertTrue("RTL forward must curl from the left edge", corner.x < w * .5f)
+            event(MotionEvent.ACTION_UP,2500,w*.80f,h*.70f)
+        }
+        Thread.sleep(500)
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            assertEquals("Physical right swipe must advance RTL in document order",1,reader.currentPage)
+            reader.close();activity.finish()
+        }
         file.delete()
     }
 }
