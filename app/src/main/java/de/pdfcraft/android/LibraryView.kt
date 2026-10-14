@@ -17,6 +17,7 @@ class LibraryView(
     private val dark: Boolean, private val onOpen: (PdfDocument) -> Unit,
     private val onOptions: (PdfDocument) -> Unit, private val onImport: () -> Unit,
     private val onSettings: () -> Unit,
+    private val onScan: (() -> Unit)?=null,
 ) : LinearLayout(context) {
     private val ink = ZenColors.of(dark).ink
     private val muted = ZenColors.of(dark).muted
@@ -106,6 +107,14 @@ class LibraryView(
         addView(frame, LayoutParams(-1,0,1f))
         val bottom = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(8),dp(16),dp(12)) }
         bottom.addView(label("Von Marcus Hoja\nOffline · private Kopien", 12f).apply { setTextColor(ZenColors.of(dark).brown) },LayoutParams(0,-2,1f))
+        onScan?.let { scan ->
+            bottom.addView(ImageView(context).apply {
+                setImageDrawable(MaterialSymbols.drawable(context,"camera",accent))
+                setPadding(dp(12),dp(12),dp(12),dp(12));background=rounded(tint,18)
+                contentDescription=context.getString(R.string.scan_title);isFocusable=true
+                setOnClickListener { scan() }
+            },LayoutParams(dp(48),dp(48)).apply { marginEnd=dp(8) })
+        }
         bottom.addView(action("PDF öffnen", "PDF öffnen") { onImport() }.apply { background = rounded(tint, 18); compoundDrawablePadding = dp(8); setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"folder",accent),null,null,null) })
         addView(bottom)
         refresh()

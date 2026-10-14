@@ -36,9 +36,12 @@ class LibraryOverlayIntegrationTest {
         val loader=ThumbnailLoader(context)
         try {
             i.runOnMainSync {
-                val library=LibraryView(context,store,loader,false,{},{},{},{})
+                var scannerOpened=false
+                val library=LibraryView(context,store,loader,false,{},{},{},{},{ scannerOpened=true })
                 fun descendants(view:View):List<View> = listOf(view)+if(view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
                 val grid=descendants(library).filterIsInstance<GridView>().single()
+                val scanner=descendants(library).single { it.contentDescription==context.getString(R.string.scan_title) }
+                assertTrue(scanner.performClick());assertTrue(scannerOpened)
                 val cell=grid.adapter.getView(0,null,grid) as LinearLayout
                 val cover=(cell.getChildAt(0) as FrameLayout).getChildAt(0) as ImageView
                 assertEquals("Covers fill the tile without stretching",ImageView.ScaleType.CENTER_CROP,cover.scaleType)

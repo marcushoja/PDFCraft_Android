@@ -26,6 +26,15 @@ class UiTextTest {
         assertEquals("Abrir", UiText.t(localized("es"), "Öffnen"))
     }
 
+    @Test fun scannerLabelsAndPageNumbersUseAllFourLanguages() {
+        val titles=mapOf("de" to "PDF scannen","en" to "Scan PDF","fr" to "Numériser un PDF","es" to "Escanear PDF")
+        val pages=mapOf("de" to "Seite 3","en" to "Page 3","fr" to "Page 3","es" to "Página 3")
+        for(tag in titles.keys) {
+            assertEquals(titles[tag],localized(tag).getString(R.string.scan_title))
+            assertEquals(pages[tag],localized(tag).getString(R.string.scan_page,3))
+        }
+    }
+
     @Test fun progressAndAccessibilityTemplates() {
         val context = localized("en")
         assertEquals("Page 3 of 12", UiText.t(context, "Seite 3 von 12"))

@@ -1,4 +1,11 @@
 <resources>
+    <item name="scan_auto_next" type="id" />
+    <item name="scan_tone_presets" type="id" />
+    <item name="scan_crop" type="id" />
+    <item name="scan_strip" type="id" />
+    <item name="scan_take_photo_button" type="id" />
+    <item name="scan_accept_button" type="id" />
+    <item name="scan_export_button" type="id" />
     <item name="reading_mode_spinner" type="id" />
     <item name="rtl_switch" type="id" />
     <item name="page_overview_grid" type="id" />

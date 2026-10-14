@@ -82,6 +82,12 @@ class MainActivity : ComponentActivity() {
     private val filePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importPdf(uri)
     }
+    private val scanner=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if(result.resultCode==RESULT_OK) result.data?.data?.let { uri ->
+            if(uri.scheme=="content" && uri.authority=="$packageName.files") importPdf(uri,deleteScanSource=true,
+                scanDraft=result.data?.getStringExtra(ScanActivity.EXTRA_SCAN_DRAFT))
+        }
+    }
     private val exportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val file = pendingExport
         if (uri != null && file != null) io.execute {
@@ -185,7 +191,9 @@ class MainActivity : ComponentActivity() {
         loadingView = null; outlinePanel = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         newRoot()
-        root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { settings() }), LinearLayout.LayoutParams(-1, -1))
+        root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { settings() }, {
+            scanner.launch(Intent(this,ScanActivity::class.java))
+        }), LinearLayout.LayoutParams(-1, -1))
     }
 
     private fun documentMenu(doc: PdfDocument) {
@@ -205,7 +213,7 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) { error("Keine App zur Dateiauswahl verfügbar.") }
     }
 
-    private fun importPdf(uri: Uri) {
+    private fun importPdf(uri: Uri,deleteScanSource:Boolean=false,scanDraft:String?=null) {
         if (importing) return
         importing = true
         val token = ++importGeneration
@@ -215,6 +223,10 @@ class MainActivity : ComponentActivity() {
         root.addView(progress, LinearLayout.LayoutParams(-1,-1))
         io.execute {
             val result = runCatching { store.importDocument(uri, { copied, total -> handler.post { if (token == importGeneration && !isDestroyed) progress.updateCopy(copied,total) } }, { cancelled.get() }) }
+            if(deleteScanSource && result.isSuccess) {
+                runCatching { contentResolver.delete(uri,null,null) }
+                scanDraft?.let { token -> runCatching { ScanActivity.clearImportedDraft(this,token) } }
+            }
             handler.post {
                 if (token != importGeneration) return@post
                 importing = false

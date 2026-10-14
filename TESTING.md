@@ -20,7 +20,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 - Debug-APK und Instrumentation-APK gebaut.
 - 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 85 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks; Reader-/Layouttests wurden auf Android 12 / API 31 und Android API 37 (Fold-Emulator) geprüft, die vollständige aktuelle Suite einschließlich Bibliotheksaktionen auf API 37:
+- 102 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -48,6 +48,25 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 `tools/pdf_selection_smoke_test.py` prüft langes Drücken auf der gerenderten Seite, das native Kopieren-/Markieren-Menü und eine exakte ausgewählte Markierung. Integrationstests prüfen verschiebbare Griffe, Zoom, Original-Berechtigungen auch nach Entschlüsselung, Zwischenablage-Inhalt und native Glyphen-/Beschnittkoordinaten bei allen vier Seitendrehungen. Individuell gedrehte/geschrägte Schrift, vertikale Schrift und seitenübergreifende Auswahl sind nicht implementiert.
 
 `tools/layouts_smoke_test.py` prüft die Auswahl der neuen Layouts über die echten Einstellungen, Doppelseiten-Navigation, separate Buchdeckblätter, RTL-Wischrichtung, ungerade Endseiten und die Wiederherstellung nach Prozessneustart.
+
+## Kamera-Scanner
+
+`ScanProcessingIntegrationTest` prüft die Perspektivkorrektur anhand einer synthetischen
+Trapezaufnahme, ungültige Eckpunkte, Farbmodi, EXIF-Ausrichtung, Seitensortierung der
+PDF-Ausgabe sowie Abbruch ohne unvollständige PDF oder veränderte Quellbilder.
+Kameraaufnahmen werden über die Kamera-App mit einer privaten FileProvider-URI
+angefordert; PDFCraft benötigt dafür keine eigene Kamera-Berechtigung.
+Scans enthalten Bildseiten, keinen OCR-Textlayer. Automatische Rand-Erkennung und
+Entzerrung gekrümmter Buchseiten sind nicht Bestandteil dieser Version.
+
+`ScanActivityIntegrationTest` prüft wiederaufgenommene Kameraausgaben, mehrere Seiten,
+persistierte Reihenfolge und Entwurfswiederherstellung. `ScanCropViewIntegrationTest`
+prüft die verschiebbaren Eckpunkte; `ScanPageStripIntegrationTest` prüft Auswahl,
+seitenbezogene Löschaktionen und die Reihenfolgenauflösung beim Ziehen.
+`tools/scanner_smoke_test.py` nutzt die tatsächliche Emulator-Kamera und prüft
+Eckpunkt-Ziehen, Presets, automatische Folgeaufnahme mit beibehaltenem Preset,
+Drag-and-drop, X-Löschbestätigung, Drehen/Bearbeiten, Prozessneustart und die
+mehrseitige benannte PDF in der Bibliothek einschließlich Entwurfsbereinigung.
 
 ## Große Bild-PDFs
 

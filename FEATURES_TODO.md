@@ -49,6 +49,8 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 ## Konvertierung, OCR und professionelle Workflows
 
 - [ ] Vollständig lokale OCR für Scans, inklusive mehrsprachiger Modelle und durchsuchbarer PDF-Ausgabe.
+- [x] Lokaler Kamera-Scanner mit manueller Vier-Ecken-Auswahl, Perspektivkorrektur und mehrseitiger Bild-PDF-Ausgabe.
+- [ ] Automatische Dokumentrand-Erkennung und Entzerrung gekrümmter Buchseiten beim Scannen.
   - Bewusst nicht als kleiner Zusatz in diesem Update umgesetzt: Dafür sind eine OCR-Engine, lokale Sprachmodelle, ein verlässlicher Textlayer-Export sowie eigene Speicher-/Abbruchtests notwendig. Keine Cloud-OCR oder scheinbar durchsuchbare Bild-PDF als Ersatz.
 - [ ] Office-Dateien nach PDF und layouttreuer Word-/Excel-/Bild-/Text-Export.
 - [ ] Sichere Schwärzung und Dokumentbereinigung. **Seitenlöschen oder optisches Überdecken ist keine sichere Schwärzung.**
