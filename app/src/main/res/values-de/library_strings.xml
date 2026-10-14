@@ -1,0 +1,9 @@
+<resources>
+    <string name="library_grid">Raster</string>
+    <string name="library_list">Liste</string>
+    <string name="library_sort">Sortieren nach</string>
+    <string name="library_name_ascending">Name · A–Z</string>
+    <string name="library_name_descending">Name · Z–A</string>
+    <string name="library_date_descending">Erstelldatum · neueste zuerst</string>
+    <string name="library_date_ascending">Erstelldatum · älteste zuerst</string>
+</resources>

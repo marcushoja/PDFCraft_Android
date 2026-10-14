@@ -1,10 +1,12 @@
 # PDFCraft Android
 
-[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+
+[Download PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk)
 
 Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
 
-The green heart in the library opens a friendly support message. **Buy me a coffee** opens the existing Stripe support page in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
+The green heart in the library and **Buy me some tokens** beneath the author credits open a friendly support message. **Buy me a coffee** in that dialog opens the existing Stripe support page in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
 
 ## Download the APK
 
@@ -17,6 +19,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 ### Library and reading
 
 - Private local library with cover thumbnails, reading progress and resume actions.
+- Switch between grid and list views; sort the library by name or date added, ascending or descending. View and sorting preferences are remembered.
 - Import PDFs through Android's file picker, **Open with** and **Share**. Originals remain unchanged.
 - Save each document's page, relative vertical position and zoom. SHA-256 deduplication preserves progress when the same file is imported again.
 - Five reading layouts: continuous vertical scrolling, single pages, side-by-side spreads, books with a separate cover, and gapless comic/webtoon scrolling. Independent right-to-left navigation for manga; text and page images are not mirrored. Mixed page sizes, unpaired final pages and saved positions are preserved when changing layouts or viewport size.
@@ -39,6 +42,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 - Drag four document corners for perspective correction. A circular 3× magnifier with crosshair stays at the top, opposite the active corner's side.
 - Side controls provide brightness/contrast presets, **Grayscale** and **Black/white** with preview. The two monochrome modes are mutually exclusive; tapping the active one again restores color.
 - **✓ Apply** saves the current page without opening another capture or picker. Use the upper camera/image icons to add more pages. **Export** also applies an unfinished edit before creating the PDF.
+- Pinch to zoom and drag to pan the confirmed scan preview without re-entering corner editing. Use **Adjust** explicitly to edit the corners again.
 - The labeled action bar provides **Rotate · Adjust · Delete · ✓ Apply · Export**. Adjust is disabled and dimmed while the corners are already being edited; unavailable overflow menus are also dimmed.
 - The introductory text embeds the same local icons used by the toolbar and includes readable screen-reader descriptions. There is no automatic-next-photo checkbox or duplicate capture controls below.
 - Collected pages appear in a horizontal strip. Hold and drag to reorder; a six-dot indicator beside the page number makes this discoverable. The smaller **X** retains a usable touch target and asks for confirmation before removal. Pages can also be rotated or edited again.

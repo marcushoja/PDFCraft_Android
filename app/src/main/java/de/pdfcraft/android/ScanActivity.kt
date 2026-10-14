@@ -176,7 +176,6 @@ class ScanActivity : ComponentActivity() {
                 handler.removeCallbacks(persistCorners)
                 handler.postDelayed(persistCorners, 150)
             }
-            setOnClickListener { if (!busy && cropRaw == null) editSelected() }
         }
         preview.addView(crop, FrameLayout.LayoutParams(-1, -1))
         empty = TextView(this).apply {

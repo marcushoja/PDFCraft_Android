@@ -14,6 +14,27 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ScanCropViewIntegrationTest {
+    @Test fun confirmedPreviewZoomsWithoutClickingOrChangingCorners() {
+        val i=InstrumentationRegistry.getInstrumentation()
+        i.runOnMainSync {
+            val view=ScanCropView(i.targetContext)
+            val photo=Bitmap.createBitmap(400,400,Bitmap.Config.ARGB_8888)
+            try {
+                val size=(800*i.targetContext.resources.displayMetrics.density).toInt()
+                view.layout(0,0,size,size);view.setPhoto(photo);view.editable=false
+                var clicks=0
+                view.setOnClickListener { clicks++ }
+                pinchScanPreview(view)
+                assertTrue(view.previewScale()>1.2f)
+                assertEquals(0,clicks)
+                assertFalse(view.editable)
+                assertEquals(ScanCropView.defaultCorners(),view.corners())
+                assertNull(view.magnifierBounds())
+                view.setPhoto(photo)
+                assertEquals(1f,view.previewScale(),.001f)
+            } finally { photo.recycle() }
+        }
+    }
     @Test fun releaseCoordinatesAreAppliedWhenMovesAreCoalesced() {
         val i=InstrumentationRegistry.getInstrumentation()
         i.runOnMainSync {
@@ -255,11 +276,33 @@ class ScanCropViewIntegrationTest {
             snapshot[0].x = .9f
             assertEquals(.1f, view.corners()[0].x, .001f)
             view.editable = false
-            assertFalse(touch(MotionEvent.ACTION_DOWN, padding, padding))
+            assertTrue(touch(MotionEvent.ACTION_DOWN, padding, padding))
+            assertEquals(.1f, view.corners()[0].x, .001f)
+            assertEquals(1, changes)
             view.setPhoto(null)
             // The view never recycles caller-owned/displayed bitmaps.
             assertFalse(bitmap.isRecycled)
             bitmap.recycle()
         }
     }
+}
+
+/** Real two-pointer events shared with the activity regression test. Call on the UI thread. */
+internal fun pinchScanPreview(view:ScanCropView) {
+    val start=android.os.SystemClock.uptimeMillis()
+    val cx=view.width/2f;val cy=view.height/2f
+    val span=minOf(view.width,view.height)*.12f
+    fun send(action:Int,time:Long,distance:Float,count:Int=2) {
+        val properties=Array(count) { index -> MotionEvent.PointerProperties().apply { id=index;toolType=MotionEvent.TOOL_TYPE_FINGER } }
+        val coords=Array(count) { index -> MotionEvent.PointerCoords().apply {
+            x=cx+if(index==0) -distance else distance;y=cy;pressure=1f;size=1f
+        } }
+        val event=MotionEvent.obtain(start,start+time,action,count,properties,coords,0,0,1f,1f,0,0,android.view.InputDevice.SOURCE_TOUCHSCREEN,0)
+        try { assertTrue(view.dispatchTouchEvent(event)) } finally { event.recycle() }
+    }
+    send(MotionEvent.ACTION_DOWN,0,span,1)
+    send(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),20,span)
+    for(step in 1..8) send(MotionEvent.ACTION_MOVE,20L+step*20,span*(1f+step*.16f))
+    send(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),220,span*2.28f)
+    send(MotionEvent.ACTION_UP,240,span*2.28f,1)
 }

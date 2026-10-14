@@ -1,0 +1,9 @@
+<resources>
+    <string name="library_grid">Cuadrícula</string>
+    <string name="library_list">Lista</string>
+    <string name="library_sort">Ordenar por</string>
+    <string name="library_name_ascending">Nombre · A–Z</string>
+    <string name="library_name_descending">Nombre · Z–A</string>
+    <string name="library_date_descending">Fecha de creación · más recientes</string>
+    <string name="library_date_ascending">Fecha de creación · más antiguos</string>
+</resources>

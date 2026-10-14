@@ -46,6 +46,11 @@ class SupportIntegrationTest {
                 icon.performClick();assertTrue(dialog.isShowing);assertEquals(0,continued)
                 assertEquals(activity.getString(R.string.support_message),dialog.findViewById<android.widget.TextView>(android.R.id.message).text.toString())
                 dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();assertEquals(0,continued)
+                fun descendants(view:android.view.View):List<android.view.View> = listOf(view)+if(view is android.view.ViewGroup)
+                    (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+                val footerLink=descendants(library).filterIsInstance<android.widget.TextView>().single { it.text.toString()=="Buy me some tokens" }
+                footerLink.performClick();assertTrue(dialog.isShowing);assertEquals(0,continued)
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();assertEquals(0,continued)
             }
             i.waitForIdleSync();assertEquals(0,continued)
             i.runOnMainSync {

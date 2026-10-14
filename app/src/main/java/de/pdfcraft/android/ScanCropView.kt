@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.view.MotionEvent
 import android.view.View
+import android.view.ScaleGestureDetector
 import kotlin.math.hypot
 import kotlin.math.min
 
@@ -25,6 +26,36 @@ class ScanCropView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
     private val loupeRect = RectF()
     private val zoomRect = RectF()
+    private var previewZoom = 1f
+    private var previewX = 0f
+    private var previewY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val next = (previewZoom * detector.scaleFactor).coerceIn(1f, 5f)
+            val ratio = next / previewZoom
+            previewX = detector.focusX - (detector.focusX - previewX) * ratio
+            previewY = detector.focusY - (detector.focusY - previewY) * ratio
+            previewZoom = next
+            constrainPreview()
+            invalidate()
+            return true
+        }
+    })
+
+    internal fun previewScale(): Float = previewZoom
+
+    private fun constrainPreview() {
+        val minX = min(0f, width - imageRect.right * previewZoom)
+        val maxX = maxOf(0f, -imageRect.left * previewZoom)
+        val minY = min(0f, height - imageRect.bottom * previewZoom)
+        val maxY = maxOf(0f, -imageRect.top * previewZoom)
+        previewX = previewX.coerceIn(minX, maxX)
+        previewY = previewY.coerceIn(minY, maxY)
+        if (imageRect.width() * previewZoom <= width) previewX = width / 2f - imageRect.centerX() * previewZoom
+        if (imageRect.height() * previewZoom <= height) previewY = height / 2f - imageRect.centerY() * previewZoom
+    }
     private val loupeClip = Path()
     private val loupePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -41,6 +72,7 @@ class ScanCropView(context: Context) : View(context) {
     fun setPhoto(bitmap: Bitmap?, corners: List<PointF> = defaultCorners()) {
         finishDrag()
         photo = bitmap
+        previewZoom = 1f; previewX = 0f; previewY = 0f
         points = corners.map { PointF(it.x, it.y) }
         updateRect()
         invalidate()
@@ -115,7 +147,7 @@ class ScanCropView(context: Context) : View(context) {
         imageRect.set((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2)
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { updateRect() }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { updateRect(); constrainPreview() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -123,7 +155,10 @@ class ScanCropView(context: Context) : View(context) {
         paint.color = Color.WHITE
         paint.style = Paint.Style.FILL
         paint.colorFilter=appearance
+        val saved = canvas.save()
+        if (!editable) { canvas.translate(previewX, previewY); canvas.scale(previewZoom, previewZoom) }
         canvas.drawBitmap(bitmap, null, imageRect, paint)
+        canvas.restoreToCount(saved)
         paint.colorFilter=null
         if (!editable) return
         val polygon = Path()
@@ -153,8 +188,29 @@ class ScanCropView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!editable) return super.onTouchEvent(event)
         if (photo == null) return false
+        if (!editable) {
+            scaleDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastX = event.x; lastY = event.y
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!scaleDetector.isInProgress && event.pointerCount == 1) {
+                        previewX += event.x - lastX; previewY += event.y - lastY
+                        constrainPreview(); invalidate()
+                    }
+                    lastX = event.x; lastY = event.y
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    val remaining = if (event.actionIndex == 0) 1 else 0
+                    lastX = event.getX(remaining); lastY = event.getY(remaining)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 dragging = points.indices.minByOrNull { i ->

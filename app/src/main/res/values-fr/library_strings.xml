@@ -1,0 +1,9 @@
+<resources>
+    <string name="library_grid">Grille</string>
+    <string name="library_list">Liste</string>
+    <string name="library_sort">Trier par</string>
+    <string name="library_name_ascending">Nom · A–Z</string>
+    <string name="library_name_descending">Nom · Z–A</string>
+    <string name="library_date_descending">Date de création · plus récents</string>
+    <string name="library_date_ascending">Date de création · plus anciens</string>
+</resources>

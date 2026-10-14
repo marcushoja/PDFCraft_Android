@@ -89,6 +89,12 @@ class ScanActivityIntegrationTest {
                 assertTrue(activity.findViewById<View>(R.id.scan_adjust_button).isEnabled)
                 assertEquals(1f,activity.findViewById<View>(R.id.scan_adjust_button).alpha,.001f)
                 assertNull(activity.findViewById<View>(R.id.scan_accept_button))
+                val preview=activity.findViewById<ScanCropView>(R.id.scan_crop)
+                pinchScanPreview(preview)
+                assertTrue(preview.previewScale()>1.2f)
+                assertFalse(preview.editable)
+                assertNull(field(activity,"cropRaw"))
+                assertTrue(activity.findViewById<View>(R.id.scan_adjust_button).isEnabled)
             }
             assertArrayEquals(original,source.readBytes())
             assertEquals("DOCUMENT",JSONObject(File(session,"session.json").readText()).getJSONArray("pages").getJSONObject(0).getString("mode"))

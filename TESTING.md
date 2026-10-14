@@ -1,5 +1,20 @@
 # Prüfstand · 13. Oktober 2026
 
+## Bibliotheksansicht und Scan-Vorschau
+
+Am 14. Oktober 2026 erfolgreich: Debug- und Test-APK gebaut, JVM-Tests und Lint sowie
+je 14 gezielte Integrationstests auf API 31 und API 37 (28 Testausführungen).
+
+`LibraryLayoutIntegrationTest` prüft den Wechsel zwischen Raster und Liste, gespeicherte
+Ansichts-/Sortiereinstellungen, Namen und Hinzufüge-Datum in beiden Richtungen sowie
+Öffnen und Dokumentoptionen in der Liste. Der Unterstützungslink steht zusätzlich im
+Fußbereich bei den Autor-Credits.
+
+`ScanCropViewIntegrationTest` prüft mit echten Zwei-Finger-Touch-Ereignissen den Zoom
+der bestätigten Vorschau ohne Klick oder Eckpunktänderung. Der Aktivitätstest prüft
+denselben Ablauf nach dem Übernehmen: kein Rücksprung in die Eckpunktbearbeitung;
+„Anpassen“ bleibt der explizite Einstieg.
+
 ## Feste APK-Signierung · 14. Oktober 2026
 
 `python3 -m unittest discover -s tools -p 'test_prepare_signing.py' -v`
