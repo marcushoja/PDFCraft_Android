@@ -167,6 +167,8 @@ class LibraryView(
             if (onSupport != null) onSupport.invoke() else SupportDialog.create(context).show()
         }.apply {
             textSize = 12f; gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(0,0,0,0)
+            compoundDrawablePadding = dp(4)
+            setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"support",if(dark) 0xffa5d6a7.toInt() else 0xff4f7d53.toInt()),null,null,null)
             paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
         })
         bottom.addView(credits,LayoutParams(0,-2,1f))

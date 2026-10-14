@@ -88,7 +88,10 @@ class ScanActivity : ComponentActivity() {
     }
     private fun pickImage() {
         if(pages.size>=MAX_PAGES) { message(R.string.scan_limit);return }
-        withCropConfirmation { runCatching { imagePicker.launch(arrayOf("image/*")) }.onFailure { message(R.string.scan_image_error) } }
+        withCropConfirmation { runCatching {
+            cropFromCamera=false;saveDraft();refresh()
+            imagePicker.launch(arrayOf("image/*"))
+        }.onFailure { message(R.string.scan_image_error) } }
     }
     private fun importImage(uri:android.net.Uri) {
         val file=local("${UUID.randomUUID()}.img")
@@ -271,6 +274,11 @@ class ScanActivity : ComponentActivity() {
             else confirmDeletePage(selected)
         }
         if(editing) action("check",R.string.scan_action_accept,R.string.scan_accept,R.id.scan_accept_button,true) { acceptCrop() }
+        else action("check",R.string.scan_action_continue,
+            if(cropFromCamera) R.string.scan_continue_camera else R.string.scan_continue_image,
+            R.id.scan_next_button,true,enabled=pages.size<MAX_PAGES) {
+            if(cropFromCamera) takePhoto() else pickImage()
+        }
         action("scan_export",R.string.scan_export_action,R.string.scan_export_action,R.id.scan_export_button) {
             if(editing) acceptAndContinue(AfterAccept.EXPORT) else export()
         }
@@ -368,7 +376,7 @@ class ScanActivity : ComponentActivity() {
         withCropConfirmation {
             val file = local("${UUID.randomUUID()}.jpg")
             try {
-                file.createNewFile(); pending = file.name; saveDraft(); refresh()
+                file.createNewFile(); pending = file.name; cropFromCamera=true; saveDraft(); refresh()
                 camera.launch(FileProvider.getUriForFile(this, "$packageName.files", file))
             } catch (_: android.content.ActivityNotFoundException) {
                 pending = null; file.delete(); saveDraft(); message(R.string.scan_camera_missing)

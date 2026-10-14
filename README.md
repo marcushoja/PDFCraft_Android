@@ -41,7 +41,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 - Open **Scan PDF** using the library's camera icon. Take photos through the device's camera app or choose existing images with Android's file picker.
 - Drag four document corners for perspective correction. A circular 3× magnifier with crosshair stays at the top, opposite the active corner's side.
 - Side controls provide brightness/contrast presets, **Grayscale** and **Black/white** with preview. The two monochrome modes are mutually exclusive; tapping the active one again restores color.
-- **✓ Apply** saves the current page without opening another capture or picker. Use the upper camera/image icons to add more pages. **Export** also applies an unfinished edit before creating the PDF.
+- **✓ Apply** saves the current page without opening another capture or picker, then becomes **✓ Continue**: tap it to reopen the last-used camera or image picker. The upper camera/image icons let you change the source. **Export** also applies an unfinished edit before creating the PDF.
 - Pinch to zoom and drag to pan the confirmed scan preview without re-entering corner editing. Use **Adjust** explicitly to edit the corners again.
 - The labeled action bar provides **Rotate · Adjust · Delete · ✓ Apply · Export**. Adjust is disabled and dimmed while the corners are already being edited; unavailable overflow menus are also dimmed.
 - The introductory text embeds the same local icons used by the toolbar and includes readable screen-reader descriptions. There is no automatic-next-photo checkbox or duplicate capture controls below.

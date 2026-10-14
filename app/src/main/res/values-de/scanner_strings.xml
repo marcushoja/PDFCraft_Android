@@ -1,4 +1,7 @@
 <resources>
+    <string name="scan_action_continue">Weiter</string>
+    <string name="scan_continue_camera">Weiter mit Kamera</string>
+    <string name="scan_continue_image">Weiter mit Bildauswahl</string>
     <string name="scan_action_accept">Übernehmen</string>
     <string name="scan_next">Weiter</string>
     <string name="scan_export_action">Exportieren</string>

@@ -98,6 +98,7 @@ class ScanActivityIntegrationTest {
             }
             assertArrayEquals(original,source.readBytes())
             assertEquals("DOCUMENT",JSONObject(File(session,"session.json").readText()).getJSONArray("pages").getJSONObject(0).getString("mode"))
+            assertContinueSource(activity,false)
         } finally {
             i.runOnMainSync { activity.finish() };i.waitForIdleSync();ScanActivity.clearImportedDraft(context,session.name);source.delete()
             if(old==null) prefs.edit().remove("session").commit() else prefs.edit().putString("session",old).commit()
@@ -118,7 +119,35 @@ class ScanActivityIntegrationTest {
         }
         fail("Scanner did not complete its bounded background operation")
     }
-    private fun launch()=i.startActivitySync(Intent(context,ScanActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ScanActivity
+    private fun launch()=i.startActivitySync(Intent(context,ScanActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)) as ScanActivity
+    private fun assertContinueSource(activity:ScanActivity,camera:Boolean) {
+        val canceled=android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED,null)
+        var cameraHits=0;var imageHits=0
+        val monitor=object:android.app.Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent:Intent):android.app.Instrumentation.ActivityResult? = when(intent.action) {
+                android.provider.MediaStore.ACTION_IMAGE_CAPTURE -> { cameraHits++;canceled }
+                Intent.ACTION_OPEN_DOCUMENT -> { imageHits++;canceled }
+                else -> null
+            }
+        }
+        i.addMonitor(monitor)
+        try {
+            i.runOnMainSync {
+                val next=activity.findViewById<View>(R.id.scan_next_button)
+                assertNotNull(next);assertTrue(next.isEnabled)
+                assertEquals(activity.getString(if(camera) R.string.scan_continue_camera else R.string.scan_continue_image),next.contentDescription)
+                assertTrue(descendants(next).filterIsInstance<android.widget.TextView>().any { it.text==activity.getString(R.string.scan_action_continue) })
+                assertEquals(0,cameraHits);assertEquals(0,imageHits)
+                next.performClick()
+            }
+            i.waitForIdleSync();idle(activity)
+            assertEquals(if(camera) 1 else 0,cameraHits)
+            assertEquals(if(camera) 0 else 1,imageHits)
+            assertNull(field(activity,"cropRaw"))
+            assertNull(activity.findViewById<View>(R.id.scan_accept_button))
+        } finally { i.removeMonitor(monitor) }
+    }
     private fun photograph(activity:ScanActivity,color:Int) {
         val session=field(activity,"session") as File
         val source=File(session,"test-camera-${System.nanoTime()}.jpg")
@@ -157,6 +186,7 @@ class ScanActivityIntegrationTest {
             i.runOnMainSync { assertEquals(2,activity.findViewById<LinearLayout>(R.id.scan_strip).childCount) }
             val after=JSONObject(File(session,"session.json").readText()).getJSONArray("pages")
             assertEquals(before.toString(),after.toString())
+            assertContinueSource(activity,true)
             assertTrue("A cancelled import must leave photos available",session.listFiles()!!.any { it.name.startsWith("test-camera-") })
             assertFalse(ScanActivity.clearImportedDraft(context,"../scanner-drafts"))
             assertTrue(session.exists())

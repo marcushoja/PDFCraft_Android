@@ -49,6 +49,7 @@ class SupportIntegrationTest {
                 fun descendants(view:android.view.View):List<android.view.View> = listOf(view)+if(view is android.view.ViewGroup)
                     (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
                 val footerLink=descendants(library).filterIsInstance<android.widget.TextView>().single { it.text.toString()=="Buy me some tokens" }
+                assertNotNull(footerLink.compoundDrawables[0])
                 footerLink.performClick();assertTrue(dialog.isShowing);assertEquals(0,continued)
                 dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();assertEquals(0,continued)
             }
