@@ -1,6 +1,6 @@
 # PDFCraft Android
 
-[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![☕ Buy me some tokens](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20some%20tokens-4F7D53?style=for-the-badge)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
 [Download PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk)
 
