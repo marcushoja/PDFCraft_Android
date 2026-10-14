@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.GridView
 import android.widget.LinearLayout
+import android.widget.ImageView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
@@ -38,6 +39,8 @@ class LibraryOverlayIntegrationTest {
                 fun descendants(view:View):List<View> = listOf(view)+if(view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
                 val grid=descendants(library).filterIsInstance<GridView>().single()
                 val cell=grid.adapter.getView(0,null,grid) as LinearLayout
+                val cover=(cell.getChildAt(0) as FrameLayout).getChildAt(0) as ImageView
+                assertEquals("Covers fill the tile without stretching",ImageView.ScaleType.CENTER_CROP,cover.scaleType)
                 val menu=(cell.getChildAt(0) as FrameLayout).getChildAt(1)
                 assertTrue(menu.layoutParams.width>=48*context.resources.displayMetrics.density)
                 assertNotNull(menu.contentDescription)

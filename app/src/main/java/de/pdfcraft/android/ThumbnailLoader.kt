@@ -96,8 +96,6 @@ class ThumbnailLoader internal constructor(context: Context, private val worker:
                     "${it.source}\n${it.page}" == content
                 } == true)
             cancelLocked(target)
-            target.adjustViewBounds = true
-            target.scaleType = ImageView.ScaleType.FIT_CENTER
             if (!keepImage && displayed != null) target.setImageDrawable(null)
             val request = Request(WeakReference(target))
             val job = jobs.getOrPut(key) { Job(file, source, page, pixels, key, priority, ++sequence) }

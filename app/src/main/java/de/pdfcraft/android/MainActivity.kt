@@ -189,13 +189,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun documentMenu(doc: PdfDocument) {
-        LocalizedDialogBuilder(this).setRawTitle(doc.name).setItems(arrayOf("Öffnen", "Umbenennen", "Teilen", "Aus Bibliothek entfernen")) { _, which ->
+        LocalizedDialogBuilder(this).setRawTitle(doc.name).setItems(arrayOf("Öffnen", "Umbenennen", "Teilen", "Lokale Kopie löschen")) { _, which ->
             if (which == 0) openDocument(doc.id)
-            else if (which == 1) textInput("Dokument umbenennen", doc.name, rawHint = true) { name -> store.rename(doc.id, name); showLibrary() }
+            else if (which == 1) textInput("Dokument umbenennen", doc.name, rawHint = true,initialValue=doc.name) { name -> store.rename(doc.id, name); showLibrary() }
             else if (which == 2) share(store.file(doc),displayName=doc.name)
-            else LocalizedDialogBuilder(this).setTitle("Lokale Kopie entfernen?")
-                .setMessage("Lesefortschritt und Lesezeichen werden gelöscht. Die ursprüngliche PDF bleibt erhalten.")
-                .setNegativeButton("Abbrechen", null).setPositiveButton("Entfernen") { _, _ -> thumbnails.releaseDocument(store.file(doc));store.remove(doc.id); showLibrary() }.show()
+            else LocalizedDialogBuilder(this).setTitle("Lokale Kopie löschen?")
+                .setMessage("Die gespeicherte PDF-Kopie, Lesefortschritt und Lesezeichen werden gelöscht. Deine Originaldatei bleibt unverändert.")
+                .setNegativeButton("Abbrechen", null).setPositiveButton("Lokale Kopie löschen") { _, _ -> thumbnails.releaseDocument(store.file(doc));store.remove(doc.id); showLibrary() }.show()
         }.show()
     }
 
@@ -820,8 +820,9 @@ class MainActivity : ComponentActivity() {
         }.show()
     }
 
-    private fun textInput(title: String, hint: String, password: Boolean = false, rawHint: Boolean = false, action: (String) -> Unit) {
+    private fun textInput(title: String, hint: String, password: Boolean = false, rawHint: Boolean = false, initialValue:String?=null, action: (String) -> Unit) {
         val input = EditText(this).apply { this.hint = if (rawHint) hint else l(hint); setPadding(dp(24), dp(12), dp(24), dp(12)); if (password) inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        initialValue?.let { input.setText(it);input.setSelectAllOnFocus(true);input.selectAll() }
         val dialog = LocalizedDialogBuilder(this).setTitle(title).setView(input).setNegativeButton("Abbrechen", null).setPositiveButton("Weiter", null).create()
         dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { val raw = input.text.toString(); val value = if (password) raw else raw.trim(); if (value.isEmpty()) input.error = l("Bitte einen Wert eingeben") else { dialog.dismiss(); action(value) } } }
         dialog.show()

@@ -20,7 +20,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 - Debug-APK und Instrumentation-APK gebaut.
 - 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 84 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator):
+- 85 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks; Reader-/Layouttests wurden auf Android 12 / API 31 und Android API 37 (Fold-Emulator) geprüft, die vollständige aktuelle Suite einschließlich Bibliotheksaktionen auf API 37:
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -35,6 +35,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
   - sichtbare gekrümmte Papierrückseite und Nachtfarben auch auf älterem Canvas;
   - eine native Renderer-Instanz für acht Vorschauen, Auftragsabbruch, stabile wiederholte Bindung, 300-Seiten-Übersicht mit begrenzter Anzahl sichtbarer Zellen;
   - transparenter Cover-Menühintergrund und ursprüngliche Unicode-Dateinamen beim Teilen, einschließlich unveränderter Dateiinhalte.
+  - kachelfüllende, unverzerrte Cover, vorausgefüllter und markierter Name beim Umbenennen sowie Abbrechen/Bestätigen von „Lokale Kopie löschen“; die Originaldatei bleibt bytegenau erhalten.
 
 ## Bedienung geprüft
 

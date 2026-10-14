@@ -60,10 +60,10 @@
     <string name="ui_no_documents">Aucun document correspondant.</string>
     <string name="ui_pdf_saved">PDF enregistré</string>
     <string name="ui_save_failed">Échec de l’enregistrement</string>
-    <string name="ui_remove_library">Retirer de la bibliothèque</string>
+    <string name="ui_remove_library">Supprimer la copie locale</string>
     <string name="ui_rename_document">Renommer le document</string>
     <string name="ui_remove_copy">Supprimer la copie locale ?</string>
-    <string name="ui_remove_copy_warning">La progression de lecture et les signets seront supprimés. Le PDF d’origine sera conservé.</string>
+    <string name="ui_remove_copy_warning">La copie PDF enregistrée, la progression de lecture et les signets seront supprimés. Votre fichier d’origine reste inchangé.</string>
     <string name="ui_no_picker">Aucune application de sélection de fichiers disponible.</string>
     <string name="ui_import_pdf">Importer le PDF</string>
     <string name="ui_cannot_open">Impossible d’ouvrir le PDF.</string>

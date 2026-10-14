@@ -60,10 +60,10 @@
     <string name="ui_no_documents">Keine passenden Dokumente.</string>
     <string name="ui_pdf_saved">PDF gespeichert</string>
     <string name="ui_save_failed">Speichern fehlgeschlagen</string>
-    <string name="ui_remove_library">Aus Bibliothek entfernen</string>
+    <string name="ui_remove_library">Lokale Kopie löschen</string>
     <string name="ui_rename_document">Dokument umbenennen</string>
-    <string name="ui_remove_copy">Lokale Kopie entfernen?</string>
-    <string name="ui_remove_copy_warning">Lesefortschritt und Lesezeichen werden gelöscht. Die ursprüngliche PDF bleibt erhalten.</string>
+    <string name="ui_remove_copy">Lokale Kopie löschen?</string>
+    <string name="ui_remove_copy_warning">Die gespeicherte PDF-Kopie, Lesefortschritt und Lesezeichen werden gelöscht. Deine Originaldatei bleibt unverändert.</string>
     <string name="ui_no_picker">Keine App zur Dateiauswahl verfügbar.</string>
     <string name="ui_import_pdf">PDF übernehmen</string>
     <string name="ui_cannot_open">Die PDF konnte nicht geöffnet werden.</string>

@@ -23,6 +23,7 @@ Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht ei
 - Fünf Leserlayouts unter **Einstellungen → Seitenansicht**: fortlaufend, Einzelseiten, zwei Seiten nebeneinander, Buch mit separatem Deckblatt, Comic/Webtoon ohne Zwischenräume. Unabhängige RTL-Leserichtung für Manga, passende Wischrichtung und Navigation; Text und Seitenbilder werden nicht gespiegelt. Gemischte Seitengrößen, ungerade Endseiten und Lesestellen beim Layout-/Größenwechsel werden berücksichtigt.
 - Schnellere Seitenübersicht: begrenzter sichtbarer Ausschnitt, abbrechbare Vorschau-Aufträge, Wiederverwendung nativer PDF-Renderer, RAM-/Plattencache und keine vollständige Anmerkungsprüfung pro Thumbnail. Übersicht startet an der aktuellen Lesestelle; Bibliotheksmenüs haben einen transparenten Hintergrund über dem Cover.
 - Teilen verwendet den ursprünglichen bzw. in der Bibliothek gewählten Dokumentnamen statt der internen UUID, ohne große PDFs dafür nochmals zu kopieren.
+- Bibliothekscover füllen die Kachel ohne Verzerrung (mittiger Zuschnitt). Beim Umbenennen ist der bisherige Name bearbeitbar vorausgefüllt. **Lokale Kopie löschen** entfernt die private PDF-Kopie samt Lesefortschritt und Lesezeichen nach Bestätigung; die Originaldatei bleibt unverändert.
 - Pinch-Zoom, Doppeltipp-Zoom, Seitenbreite oder ganze Seite einpassen.
 - Seitenübersicht, direkter Seitensprung, eigene Lesezeichen.
 - Echtes Vollbild inklusive Systemleisten, mit einer Schaltfläche zum Verlassen; dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.

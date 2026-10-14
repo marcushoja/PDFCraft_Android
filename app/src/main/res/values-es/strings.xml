@@ -60,10 +60,10 @@
     <string name="ui_no_documents">No hay documentos que coincidan.</string>
     <string name="ui_pdf_saved">PDF guardado</string>
     <string name="ui_save_failed">Error al guardar</string>
-    <string name="ui_remove_library">Quitar de la biblioteca</string>
+    <string name="ui_remove_library">Eliminar la copia local</string>
     <string name="ui_rename_document">Cambiar nombre del documento</string>
     <string name="ui_remove_copy">¿Eliminar la copia local?</string>
-    <string name="ui_remove_copy_warning">Se eliminarán el progreso de lectura y los marcadores. Se conservará el PDF original.</string>
+    <string name="ui_remove_copy_warning">Se eliminarán la copia PDF guardada, el progreso de lectura y los marcadores. Tu archivo original permanece sin cambios.</string>
     <string name="ui_no_picker">No hay ninguna aplicación para seleccionar archivos.</string>
     <string name="ui_import_pdf">Importar PDF</string>
     <string name="ui_cannot_open">No se pudo abrir el PDF.</string>

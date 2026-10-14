@@ -60,10 +60,10 @@
     <string name="ui_no_documents">No matching documents.</string>
     <string name="ui_pdf_saved">PDF saved</string>
     <string name="ui_save_failed">Saving failed</string>
-    <string name="ui_remove_library">Remove from library</string>
+    <string name="ui_remove_library">Delete local copy</string>
     <string name="ui_rename_document">Rename document</string>
-    <string name="ui_remove_copy">Remove local copy?</string>
-    <string name="ui_remove_copy_warning">Reading progress and bookmarks will be deleted. The original PDF will be kept.</string>
+    <string name="ui_remove_copy">Delete local copy?</string>
+    <string name="ui_remove_copy_warning">The saved PDF copy, reading progress and bookmarks will be deleted. Your original file remains unchanged.</string>
     <string name="ui_no_picker">No file picker app available.</string>
     <string name="ui_import_pdf">Import PDF</string>
     <string name="ui_cannot_open">The PDF could not be opened.</string>
