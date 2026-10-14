@@ -1,56 +1,74 @@
 # PDFCraft Android
 
-[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=000000)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![Buy me some tokens](https://img.shields.io/badge/Buy%20me%20some%20tokens-4F7D53?style=for-the-badge&logo=buymeacoffee&logoColor=FFFFFF)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
-## APK herunterladen
+Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
 
-Die jeweils aktuelle installierbare APK liegt unter [GitHub Releases](https://github.com/marcushoja/PDFCraft_Android/releases/latest): [PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk).
+The green heart in the library opens a friendly support message. The support page opens in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
 
-Jeder Push auf `main` baut und prüft die App automatisch und veröffentlicht einen neuen Release inklusive SHA-256-Prüfsumme. Es handelt sich zunächst um **entwicklersignierte Vorschau-Builds**, nicht um eine Play-Store-Veröffentlichung. Der CI-Signaturschlüssel wird wiederverwendet; falls dessen GitHub-Cache gelöscht wird, kann eine Neuinstallation erforderlich sein. Lokal gebaute APKs haben einen anderen Schlüssel als CI-APKs und lassen sich deshalb nicht direkt darüber installieren.
+## Download the APK
 
-## Funktionen
+Get the latest installable APK from [GitHub Releases](https://github.com/marcushoja/PDFCraft_Android/releases/latest): [PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk).
 
-- Lokale Bibliothek mit Vorschaubildern, Fortschritt und „Weiterlesen“.
-- PDFs über die Android-Dateiauswahl, „Öffnen mit“ und „Teilen“ importieren.
-- Lesestelle pro Dokument speichern: Seite, relative vertikale Position und Zoom. Identische Dateien werden anhand ihres SHA-256-Hashes erkannt; erneuter Import behält den Fortschritt.
-- Fortlaufend vertikal lesen oder horizontal durch Einzelseiten wischen.
-- Fingergeführtes Umblättern mit nichtlinear gekrümmtem, zylindrischem Bitmap-Mesh: sichtbare Papierrückseite, gespiegelter leichter Durchdruck, Faltkante und Schatten; Abschluss oder Zurückrollen beim Loslassen. Das Mesh nutzt den hardwarebeschleunigten Canvas-Pfad, wenn verfügbar; es ist kein eigener OpenGL-Renderer. Animation derzeit für ungezoomte Einzelseiten, Doppelseiten werden ohne Curl gewechselt.
-- Fünf Leserlayouts unter **Einstellungen → Seitenansicht**: fortlaufend, Einzelseiten, zwei Seiten nebeneinander, Buch mit separatem Deckblatt, Comic/Webtoon ohne Zwischenräume. Unabhängige RTL-Leserichtung für Manga, passende Wischrichtung und Navigation; Text und Seitenbilder werden nicht gespiegelt. Gemischte Seitengrößen, ungerade Endseiten und Lesestellen beim Layout-/Größenwechsel werden berücksichtigt.
-- Schnellere Seitenübersicht: begrenzter sichtbarer Ausschnitt, abbrechbare Vorschau-Aufträge, Wiederverwendung nativer PDF-Renderer, RAM-/Plattencache und keine vollständige Anmerkungsprüfung pro Thumbnail. Übersicht startet an der aktuellen Lesestelle; Bibliotheksmenüs haben einen transparenten Hintergrund über dem Cover.
-- Teilen verwendet den ursprünglichen bzw. in der Bibliothek gewählten Dokumentnamen statt der internen UUID, ohne große PDFs dafür nochmals zu kopieren.
-- Bibliothekscover füllen die Kachel ohne Verzerrung (mittiger Zuschnitt). Beim Umbenennen ist der bisherige Name bearbeitbar vorausgefüllt. **Lokale Kopie löschen** entfernt die private PDF-Kopie samt Lesefortschritt und Lesezeichen nach Bestätigung; die Originaldatei bleibt unverändert.
-- **PDF scannen** über das Kamera-Symbol in der Bibliothek: Fotos mit der Kamera-App aufnehmen, vier Dokumentecken verschieben und perspektivisch geradeziehen. Die aufgenommenen Seiten werden in einer horizontalen Leiste gesammelt und als mehrseitige PDF in die Bibliothek übernommen. Verarbeitung und Export erfolgen lokal, ohne Konto oder Cloud-OCR. Perspektivkorrektur ist für flache Dokumente gedacht, nicht für gekrümmte Buchseiten; ohne OCR besteht die PDF aus Bildern.
-  - Seitliche Helligkeits-/Kontrast-Presets sowie **Graustufen** und **Schwarz/Weiß** mit Vorschau. Die beiden Farbmodi schließen sich gegenseitig aus; erneutes Antippen des aktiven Modus stellt Farbe wieder her. **✓ Übernehmen** speichert nur die aktuelle Seite, ohne eine Aufnahme oder Bildauswahl zu öffnen. Weitere Seiten werden über die oberen Icons hinzugefügt. **Exportieren** übernimmt ebenfalls eine noch bearbeitete Seite und erstellt die PDF. Keine Folgeaufnahme-Checkbox und keine doppelten Aufnahmebuttons unten.
-  - Thumbnails per langem Drücken und Ziehen umsortieren; ein Sechs-Punkte-Symbol neben der Seitennummer weist darauf hin. Das optisch kleinere **X** behält eine gut treffbare Touchfläche und eine Löschbestätigung.
-  - **Bild auswählen** importiert vorhandene Bilder einzeln über die Android-Dateiauswahl in denselben Editor; Originalbilder bleiben unverändert. Die kreisförmige 3×-Lupe mit Fadenkreuz bleibt immer oben, auf der gegenüberliegenden Seite der aktiven Ecke. Die Icon-Leiste bietet **Drehen · Anpassen · Löschen · ✓ Übernehmen · Exportieren**; Anpassen ist während der Eckpunktbearbeitung deaktiviert und ausgegraut. Nicht verfügbare Drei-Punkte-Menüs werden ebenfalls ausgegraut. Der Einführungstext enthält dieselben lokalen Icons direkt im Text sowie lesbare Screenreader-Beschreibungen. Die Aufnahme selbst erfolgt weiterhin über die Kamera-App des Geräts, nicht über eine eigene Live-Kameraansicht.
-  - Unfertige Scans bleiben privat als Entwurf gespeichert. Nach erfolgreicher Übernahme in die Bibliothek werden Entwurfsfotos entfernt; bei abgebrochener/fehlgeschlagener Übernahme bleiben sie wiederaufnehmbar. Bis zu 100 Seiten, Bilder mit maximal 2200 Pixeln Kantenlänge; Ausgabe auf A4 ohne Verzerrung, mit Weißrändern bei anderem Seitenverhältnis.
-- Pinch-Zoom, Doppeltipp-Zoom, Seitenbreite oder ganze Seite einpassen.
-- Seitenübersicht, direkter Seitensprung, eigene Lesezeichen.
-- Echtes Vollbild inklusive Systemleisten, mit einer Schaltfläche zum Verlassen; dunkle Oberfläche, invertierte Nachtansicht und optional wach gehaltener Bildschirm.
-- **Textmodus / Reflow:** echter eingebetteter PDF-Text als auswählbarer, umbrochener Text; einstellbare Schriftgröße und Serifenschrift, separate gespeicherte Text-Leseposition. Seitenweise Navigation. Scans ohne Text erhalten einen Hinweis statt eines vorgetäuschten Reflows.
-- Abbrechbare Volltextsuche ohne Beachtung der Groß-/Kleinschreibung, mit Seitenfortschritt, Trefferliste und Markierungen im Textmodus; aufklappbares, durchsuchbares Inhaltsverzeichnis; Teilen, Screenshot und Android-Drucken.
-- Fortschritts-Ladebildschirm beim Import, beim Vorbereiten großer Dokumente und bis die erste sichtbare Seite gerendert ist; jederzeit abbrechbar.
-- Deutsch, Englisch, Französisch und Spanisch unter **Einstellungen → Sprache**. Standard: Deutsch; „Systemsprache“ folgt dem Gerät. PDF-Inhalt, Dateinamen und Notizen werden nicht übersetzt.
-- Suchbare Cover-Bibliothek mit „Zuletzt“, „Bibliothek“ und „Lesezeichen“, Umbenennen und Entfernen lokaler Kopien. Die Bedienung und Farbgebung orientieren sich an [MJ PDF](https://play.google.com/store/apps/details?id=com.gitlab.mudlej.MjPdfReader); kein MJ-PDF-Code übernommen.
-- PDF-Werkzeuge: Seiten drehen, extrahieren/neu ordnen, löschen, zusammenführen und aufteilen; Notizen hinzufügen/lesen, Text markieren, Standardformulare ausfüllen, Metadaten ändern und Passwortschutz.
-- Eigenes Icon-Raster für alle PDF-Werkzeuge. Markieren mit sechs Farben, Live-Vorschau und drei Modi: Hervorheben, Unterstreichen, Durchstreichen. Farb-/Moduswahl bleibt gespeichert. Im Reflow erscheint „Text markieren“ im Auswahlmenü. Markiert werden alle passenden Textstellen auf der aktuellen Seite; mehrzeilige/gedrehte Texte und Scans sind noch nicht unterstützt.
-- Direkte Textauswahl auf der gerenderten PDF-Seite: lang drücken, Auswahlgriffe verschieben, Kopieren/Alles auswählen/Markieren. Diese Markierung verwendet ausschließlich die ausgewählten Glyphen, auch über mehrere Zeilen, statt alle gleichen Wörter zu markieren. Unterstützt Seitenbeschnitt, 0°/90°/180°/270°-Seitendrehung, Zoom und Scrollen. Auswahl bleibt auf einer Seite; individuell gedrehte/geschrägte oder vertikale Schrift wird noch ausgelassen, Scans benötigen OCR.
-- Große Bild-PDFs werden zuerst nativ angezeigt; die vollständige Anmerkungsprüfung blockiert die erste Seite nicht mehr. Seitengrößen und geprüfte Darstellungen liegen im privaten, automatisch begrenzten Dokumentcache (bis 512 MiB, sieben Tage). Ein zusätzlicher 32-MiB-RAM-Cache beschleunigt das Wiederöffnen bereits gerenderter Seiten. Entschlüsselte `unlocked-*`-Ansichten werden nicht dauerhaft bzw. dokumentübergreifend gecacht. Anmerkungen können beim ersten Öffnen kurz nach der Seite erscheinen.
-- Handschriftliche sichtbare Unterschrift per Finger; **keine kryptografische Signatur**.
-- Passwortgeschützte PDFs zum Lesen entsperren; Passwort wird nicht gespeichert, verschlüsselte Originalkopie bleibt erhalten. Temporäre entschlüsselte Ansicht wird beim Schließen gelöscht und nach einem Prozessabbruch beim nächsten Start bereinigt. Autor-Berechtigungen werden für Textzugriff/Druck berücksichtigt; Bearbeitung entsperrter Dateien derzeit nur mit Eigentümerpasswort.
-- Lokale private Kopien: Originaldateien werden niemals verändert. Keine Internetberechtigung, Konten, Werbung oder Telemetrie. Cloud-Dateianbieter können beim Import selbst Netzwerkzugriff benötigen.
+Every push to `main` automatically builds and checks the app and publishes a release with its SHA-256 checksum. These are **developer-signed preview builds**, not Play Store releases. GitHub builds use the fixed project signing key from the `PDFCRAFT_SIGNING_BUNDLE` secret; its certificate is checked before publication. Releases from build 11 onward support normal updates without uninstalling. Older releases may require a one-time reinstall: save important documents first. Local builds without the release signing environment use a different debug key and cannot update GitHub builds directly. See [SIGNING.md](SIGNING.md).
 
-**Keine vollständige PdfCraft-Parität:** weiterhin fehlen OCR, zuverlässige Bearbeitung bestehender PDF-Texte, Office-Konvertierung, sichere Schwärzung, kryptografische Signaturen, Ebenen-/Anhangsverwaltung, PDF/A-/Preflight-Werkzeuge, XFA, vollständige Kommentar-Threads und weitere Acrobat-Pro-Funktionen. Direkte Textauswahl funktioniert für eingebetteten Text; die Grenzen stehen oben. Die Nachtansicht invertiert auch Bilder.
+## Features
 
-Die vollständige Liste der noch offenen Funktionen steht in [`FEATURES_TODO.md`](FEATURES_TODO.md), der Prüfstand in [`TESTING.md`](TESTING.md).
+### Library and reading
 
-**Sichere Originale, begrenzte Bearbeitung:** Werkzeuge erstellen neue Kopien, keine inkrementellen Updates. Bestehende digitale Signaturen können dadurch ungültig werden. Bearbeitete Kopien werden ohne ursprüngliche Verschlüsselung gespeichert, außer beim ausdrücklichen Passwortschutz. Extraktion/Seitenlöschung repariert nicht alle Verweise des Inhaltsverzeichnisses oder Formulare zu entfernten Seiten und ist keine sichere Schwärzung. Highlighting unterstützt zunächst ungedrehte Textseiten. Neu geschützte Kopien erlauben Lesen/Drucken, sperren aber Textextraktion/Bearbeitung. Zusammenführen ist auf importierte Bibliotheksdateien begrenzt; Aufteilen erstellt lokale Bibliothekskopien.
+- Private local library with cover thumbnails, reading progress and resume actions.
+- Import PDFs through Android's file picker, **Open with** and **Share**. Originals remain unchanged.
+- Save each document's page, relative vertical position and zoom. SHA-256 deduplication preserves progress when the same file is imported again.
+- Five reading layouts: continuous vertical scrolling, single pages, side-by-side spreads, books with a separate cover, and gapless comic/webtoon scrolling. Independent right-to-left navigation for manga; text and page images are not mirrored. Mixed page sizes, unpaired final pages and saved positions are preserved when changing layouts or viewport size.
+- Finger-controlled page curling with a nonlinear cylindrical bitmap mesh, visible paper backside, faint mirrored ink, crease and shadows. Release commits the turn or rolls it back. The mesh uses the hardware-accelerated Canvas path when available, not a dedicated OpenGL renderer. Curl animation currently applies to unzoomed single pages; spreads change without curl.
+- Faster page overview with a bounded viewport, cancelable thumbnail requests, reused native PDF renderers, RAM/disk caches and no full annotation inspection per thumbnail. It opens at the current reading position.
+- Covers fill their tiles without stretching, using centered cropping and rounded image corners. The options button stays transparent over the cover.
+- Renaming starts with the existing name as editable, selected text. Sharing exposes the original or library-chosen name rather than the internal file identifier, without copying large PDFs again.
+- **Delete local copy** removes the private PDF, reading progress and bookmarks after confirmation. The original file is kept.
+- Pinch zoom, double-tap zoom, fit width or fit the entire page; page overview, direct page jump and app bookmarks.
+- True fullscreen including system bars, with an exit control; dark interface, inverted night rendering and optional keep-screen-awake behavior.
+- **Text mode / Reflow:** selectable, rewrapped embedded PDF text with font-size and serif options, page navigation and a separately saved reading position. Image-only scans show an explanation rather than fake reflow.
+- Cancelable, case-insensitive full-document search with progress and results; search highlights in reflow; expandable, searchable table of contents; sharing, screenshots and Android printing.
+- Cancelable progress screens for import, large-document preparation and first-page rendering.
+- German, English, French and Spanish under **Settings → Language**. German is the default; **System language** follows the device. PDF contents, filenames and notes are never translated.
+- Searchable **Recent**, **Library** and **Bookmarks** views. The interface is inspired by [MJ PDF](https://play.google.com/store/apps/details?id=com.gitlab.mudlej.MjPdfReader); no MJ PDF code is used.
 
-## Bauen
+### Camera and image scanner
 
-Android Studio mit JDK 17 oder neuer, Android SDK 36 und Build Tools 36.0.0. Mindestversion auf dem Smartphone: **Android 8.0 (API 26)**.
+- Open **Scan PDF** using the library's camera icon. Take photos through the device's camera app or choose existing images with Android's file picker.
+- Drag four document corners for perspective correction. A circular 3× magnifier with crosshair stays at the top, opposite the active corner's side.
+- Side controls provide brightness/contrast presets, **Grayscale** and **Black/white** with preview. The two monochrome modes are mutually exclusive; tapping the active one again restores color.
+- **✓ Apply** saves the current page without opening another capture or picker. Use the upper camera/image icons to add more pages. **Export** also applies an unfinished edit before creating the PDF.
+- The labeled action bar provides **Rotate · Adjust · Delete · ✓ Apply · Export**. Adjust is disabled and dimmed while the corners are already being edited; unavailable overflow menus are also dimmed.
+- The introductory text embeds the same local icons used by the toolbar and includes readable screen-reader descriptions. There is no automatic-next-photo checkbox or duplicate capture controls below.
+- Collected pages appear in a horizontal strip. Hold and drag to reorder; a six-dot indicator beside the page number makes this discoverable. The smaller **X** retains a usable touch target and asks for confirmation before removal. Pages can also be rotated or edited again.
+- Drafts are saved privately and can be resumed after an app restart. Draft photos are removed only after successful library import; failed or canceled imports keep the draft available.
+- Up to 100 pages, with processed image edges limited to 2200 pixels. PDF output uses A4 pages without stretching, adding white margins for other aspect ratios.
+- Processing and export are local, with no account or cloud OCR. Perspective correction targets flat documents, not curved book pages. Without OCR, the exported PDF contains images, not searchable text.
 
-Projektordner in Android Studio öffnen; `local.properties` auf das eigene SDK zeigen lassen (nicht im Git). Danach:
+### PDF tools
+
+- Rotate, extract/reorder, delete, merge and split pages; add/read notes, mark text, fill standard forms, edit metadata and apply password protection.
+- Icon-grid tool menus. Markup offers six colors and highlight, underline and strikeout, with preview and remembered choices. Reflow selection includes **Mark text**. Query-based marking matches text on the current page; scans require OCR.
+- Direct selection on rendered pages: long press, move selection handles, copy, select all or mark. Markup uses only the selected glyphs, including multiline selections, instead of marking every identical word. Supports crop offsets, 0°/90°/180°/270° page rotations, zoom and scrolling. Selection remains on one page; individually rotated/skewed or vertical glyphs are skipped.
+- Image-heavy PDFs display natively first, without waiting for complete annotation inspection. Page sizes and prepared viewing copies use a bounded private cache of up to 512 MiB with seven-day expiry. A separate 32-MiB RAM bitmap cache speeds reopening. Decrypted `unlocked-*` views bypass persistent and cross-document caching. Annotations may appear shortly after the first page.
+- Visible handwritten signatures using a finger; **not cryptographic signatures**.
+- Unlock password-protected PDFs for reading without storing the password or replacing the encrypted original copy. Temporary decrypted views are deleted on close and cleaned up after a process interruption on the next launch. Author permissions are respected for text access and printing; editing unlocked files currently requires the owner password.
+
+### Privacy and limitations
+
+- Original documents are never modified. The app has no Internet permission, accounts, advertising or telemetry. Cloud file providers may need their own network access during import. The optional support link opens externally in a browser; no PDFs are attached or shared with it.
+- **Not full PdfCraft/Acrobat parity:** OCR, reliable editing of existing PDF text, Office conversion, safe redaction, cryptographic signatures, layers/attachments, PDF/A/preflight tools, XFA, full comment threads and other advanced features remain unimplemented. Night rendering also inverts images.
+- Tools create new copies rather than incremental updates, which can invalidate existing digital signatures. Edited copies are saved without the original encryption unless password protection is explicitly applied.
+- Extraction and page deletion do not repair every outline or form reference to removed pages and are **not safe redaction**. Newly protected copies allow reading/printing but restrict text extraction/editing. Merging uses imported library documents; splitting creates private library copies.
+
+See [FEATURES_TODO.md](FEATURES_TODO.md) for remaining features and [TESTING.md](TESTING.md) for validation details. These supporting documents are currently in German.
+
+## Build
+
+Use Android Studio, JDK 17 or newer, Android SDK 36 and Build Tools 36.0.0. Minimum supported device version: **Android 8.0 (API 26)**.
+
+Open the project in Android Studio and point `local.properties` to your SDK installation; do not commit it. Then run:
 
 ```sh
 ./gradlew assembleDebug
@@ -58,38 +76,42 @@ Projektordner in Android Studio öffnen; `local.properties` auf das eigene SDK z
 ./gradlew connectedDebugAndroidTest
 ```
 
-Unter Windows entsprechend `gradlew.bat`. APK: `app/build/outputs/apk/debug/app-debug.apk`.
+On Windows, use `gradlew.bat`. APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Aufbau
+## Architecture
 
-Kotlin, native Android-Views und AndroidX Activity. Androids `PdfRenderer` rendert im Hintergrund; PDFBox Android verarbeitet Text und PDF-Kopien lokal. Keine WebView und kein Server. Ein begrenzter Bitmap-Cache und bedarfsgerechtes Nachrendern halten den Speicherverbrauch kontrolliert; maximale Vergrößerung 5×, Importlimit 500 MiB. Bei extremem Zoom ist die Renderauflösung aus Speichergründen begrenzt; noch kein gekacheltes Rendering.
+Kotlin, native Android views and AndroidX Activity. Android's `PdfRenderer` renders in the background; PDFBox Android handles text and PDF copies locally. No WebView or backend server. Bounded bitmap caches and on-demand rendering control memory use. Maximum zoom is 5×; PDF import is limited to 500 MiB. Rendering resolution is bounded at extreme zoom; tiled rendering is not implemented yet.
 
-- `MainActivity.kt`: Bibliothek, Android-Dateiauswahl und Leseoberfläche.
-- `PdfReaderView.kt`: Rendering, Layout, Gesten, Leseposition.
-- `DocumentStore.kt`: private Importe, Duplikaterkennung und Metadaten.
-- `ThumbnailLoader.kt`: Hintergrund-Vorschaubilder mit Speicher-/Festplatten-Cache.
-- `ReadingProgress.kt`: unabhängig getestete Normalisierung der Leseposition.
-- `LibraryView.kt`: suchbare Cover-Bibliothek.
-- `PdfTextService.kt`, `ReflowView.kt`: Extraktion, Suche, Inhaltsverzeichnis und Textmodus.
-- `PdfTools.kt`, `PdfMarkup.kt`: Organisation, Formulare, Notizen, Markierungen und sichtbare Unterschriften.
+- `MainActivity.kt`: library, Android file selection and reader integration.
+- `PdfReaderView.kt`: rendering, layouts, gestures and reading position.
+- `DocumentStore.kt`: private imports, deduplication and metadata.
+- `ThumbnailLoader.kt`: background thumbnails with RAM/disk caching.
+- `ReadingProgress.kt`: independently tested reading-position normalization.
+- `LibraryView.kt`: searchable cover library.
+- `PdfTextService.kt`, `ReflowView.kt`: extraction, search, outlines and reflow.
+- `PdfTools.kt`, `PdfMarkup.kt`: page organization, forms, notes, markup and visible signatures.
+- `ScanActivity.kt`, `ScanCropView.kt`, `ScanPageStrip.kt`, `ScanProcessing.kt`: scanner workflow, corner editing, page strip, perspective correction and image-PDF export.
+- `SupportDialog.kt`: optional support message and external browser link.
 
-Eigene Lesezeichen sind App-Metadaten, keine Änderungen innerhalb der PDF. Dokumente und Fortschritt werden nicht per Android-Backup exportiert; Deinstallation löscht die lokale Bibliothek.
+Bookmarks are app metadata, not changes within the PDF. Documents and reading progress are excluded from Android backup; uninstalling deletes the private library.
 
 ## Tests
 
-JUnit-Tests prüfen Fortschrittswerte, Seitenauswahl und Textverarbeitung. Android-Integrationstests prüfen echten Import, Duplikate, Fortschritt, Lesezeichen, sichere Entfernung, ungültige Dateien, Rendering, Zoom-Gesten, Reflow, Suche, Inhaltsverzeichnis, PDF-Werkzeuge, Markierungen, Unterschriften, Formulare, Passwörter und unveränderte Originale.
+JUnit tests cover progress values, page selection, text processing, spread grouping and curl geometry. Android integration tests cover real import, deduplication, progress, bookmarks, safe removal, invalid files, rendering, gestures, reflow, search, outlines, PDF tools, markup, signatures, forms, passwords, scanner processing and unchanged originals.
 
-`tools/smoke_test.py` ergänzt einen UI-Test auf einem laufenden Emulator: Seitensprung, Lesezeichen, Prozess-Neustart, Wiederaufnahme und Screenshots. Zuerst Integrationstests ausführen, damit die Test-PDF existiert. `ADB` kann auf eine alternative ADB-Datei zeigen.
+The scripts under `tools/` add UI smoke tests on a running emulator. Run instrumentation tests first to create their PDF fixtures. Set `ADB` to an alternate ADB executable and `ANDROID_SERIAL` to select an emulator. Scanner tests require the emulator's camera app and the gallery script also uses Pillow.
 
 ```sh
 python3 tools/smoke_test.py --output /tmp/opencode/pdfcraft-smoke
 python3 tools/reflow_smoke_test.py
 python3 tools/zen_ui_smoke_test.py
 python3 tools/search_cancel_smoke_test.py
+python3 tools/scanner_smoke_test.py
+python3 tools/scanner_gallery_smoke_test.py
 ```
 
-## Lizenz
+## License
 
-Eigener Code unter MIT, siehe `LICENSE`. Kein Quellcode oder Markenmaterial aus PdfCraft oder MJ PDF übernommen. AndroidX, PDFBox Android und Gradle Wrapper unter Apache-2.0; siehe `NOTICE`. Die Render-Engine ist Teil des Android-Systems.
+Original project code is licensed under MIT; see [LICENSE](LICENSE). No source code or brand assets from PdfCraft or MJ PDF are included. AndroidX, PDFBox Android and the Gradle Wrapper use Apache-2.0; see [NOTICE](NOTICE). The PDF rendering engine is part of Android.
 
-Material Symbols werden über Iconify bezogen und als lokale Vektorpfade gebündelt (Google, Apache-2.0); kein Netzwerkzugriff zur Laufzeit und keine Icon-Schrift nötig.
+Material Symbols are sourced through Iconify and bundled as local vector paths (Google, Apache-2.0). No runtime icon downloads or icon font are needed.

@@ -1,0 +1,7 @@
+<resources>
+    <string name="support_title">Support PDFCraft</string>
+    <string name="support_message">Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!\n\nThe support button opens the project’s existing Stripe page in your browser. Your PDFs are not shared.</string>
+    <string name="support_action">Support the project</string>
+    <string name="support_close">Close</string>
+    <string name="support_browser_error">No browser is available to open the support page.</string>
+</resources>

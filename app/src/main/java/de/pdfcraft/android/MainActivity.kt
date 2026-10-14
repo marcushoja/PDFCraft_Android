@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
     private var outlinePanel: OutlinePanel? = null
     private var searchProgress: AlertDialog? = null
     private var pageOverviewDialog:AlertDialog?=null
+    private var supportDialog:AlertDialog?=null
     private var importGeneration = 0
     private var pageSeek: SeekBar? = null
     private var importing = false
@@ -193,7 +194,14 @@ class MainActivity : ComponentActivity() {
         newRoot()
         root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { settings() }, {
             scanner.launch(Intent(this,ScanActivity::class.java))
-        }), LinearLayout.LayoutParams(-1, -1))
+        }, { showSupport() }), LinearLayout.LayoutParams(-1, -1))
+    }
+
+    private fun showSupport() {
+        supportDialog?.dismiss()
+        val dialog=SupportDialog.create(this);supportDialog=dialog
+        dialog.setOnDismissListener { if(supportDialog===dialog) supportDialog=null }
+        dialog.show()
     }
 
     private fun documentMenu(doc: PdfDocument) {
@@ -956,5 +964,5 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() { persistPosition(); super.onPause() }
     override fun onSaveInstanceState(outState: Bundle) { persistPosition(); outState.putString("document", documentId); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { persistPosition(); importGeneration++; searchProgress?.dismiss(); pageOverviewDialog?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); discardUnlockedCopy(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
+    override fun onDestroy() { persistPosition(); importGeneration++; searchProgress?.dismiss(); pageOverviewDialog?.dismiss(); supportDialog?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); discardUnlockedCopy(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
 }

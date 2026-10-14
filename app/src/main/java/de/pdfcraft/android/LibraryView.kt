@@ -18,6 +18,7 @@ class LibraryView(
     private val onOptions: (PdfDocument) -> Unit, private val onImport: () -> Unit,
     private val onSettings: () -> Unit,
     private val onScan: (() -> Unit)?=null,
+    private val onSupport:(() -> Unit)?=null,
 ) : LinearLayout(context) {
     private val ink = ZenColors.of(dark).ink
     private val muted = ZenColors.of(dark).muted
@@ -74,6 +75,14 @@ class LibraryView(
         orientation = VERTICAL
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(12),dp(12),dp(6)) }
         header.addView(label("PDFCraft", 24f).apply { setTypeface(typeface, Typeface.BOLD) }, LayoutParams(0,-2,1f))
+        onSupport?.let { support ->
+            header.addView(ImageView(context).apply {
+                id=R.id.support_button;contentDescription=context.getString(R.string.support_title);isFocusable=true
+                setImageDrawable(MaterialSymbols.drawable(context,"support",if(dark) 0xffa5d6a7.toInt() else 0xff4f7d53.toInt()))
+                setPadding(dp(12),dp(12),dp(12),dp(12));background=rounded(tint,24)
+                setOnClickListener { support() }
+            },LayoutParams(dp(48),dp(48)).apply { marginEnd=dp(8) })
+        }
         header.addView(action("", "Einstellungen") { onSettings() }.apply { setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"menu",accent),null,null,null) })
         addView(header)
         val search = EditText(context).apply {

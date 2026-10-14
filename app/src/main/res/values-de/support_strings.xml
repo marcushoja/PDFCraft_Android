@@ -1,0 +1,7 @@
+<resources>
+    <string name="support_title">PDFCraft unterstützen</string>
+    <string name="support_message">In PDFCraft stecken viele Stunden Entwicklung und Tests. Wenn dir die App gefällt, kannst du das Projekt gern freiwillig unterstützen. Deine Unterstützung hilft bei der Weiterentwicklung. Vielen Dank!\n\nDer Unterstützen-Button öffnet die bereits vorhandene Stripe-Seite des Projekts in deinem Browser. Deine PDFs werden nicht geteilt.</string>
+    <string name="support_action">Projekt unterstützen</string>
+    <string name="support_close">Schließen</string>
+    <string name="support_browser_error">Es ist kein Browser zum Öffnen der Unterstützungsseite verfügbar.</string>
+</resources>

@@ -20,7 +20,7 @@ Einrichtung des einmaligen GitHub-Secrets: [`SIGNING.md`](SIGNING.md).
 - Debug-APK und Instrumentation-APK gebaut.
 - 28 JVM-Unit-Tests: Fortschritt, Seitenauswahl, Textverarbeitung, gekrümmtes Mesh und Gruppierung der Buch-/Doppelseitenlayouts.
 - Android Lint: keine Fehler; Hinweise zu Übersetzbarkeit, API-Deprecations und optionalen KTX-Erweiterungen bleiben.
-- 115 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im Scanner-Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
+- 118 Integrationstests einschließlich zweier optionaler Großdatei-Benchmarks auf Android 12 / API 31 und Android API 37 (Fold-Emulator). Im aktuellen Durchlauf waren die Großdatei-Fixtures nicht vorhanden; diese zwei optionalen Benchmarks wurden übersprungen:
   - echter Datei-/Content-URI-Import, Duplikate, Fortschritt und Lesezeichen;
   - echte PDF-Render-Engine, Seitensprünge, kurze letzte Seite, Größe/Rotation;
   - Doppeltipp und Mehrfinger-Zoom;
@@ -81,6 +81,12 @@ Sechs-Punkte-Verschiebehinweis, ausgegraute Menüs und das Entfernen der Checkbo
 `ScanIntroTextIntegrationTest` prüft die vier echten Inline-Icons und lesbare
 Screenreader-Texte in allen vier Sprachen. Die Aktivitätstests prüfen außerdem,
 dass Anpassen während der Bearbeitung deaktiviert und nach dem Übernehmen wieder aktiv ist.
+
+`SupportIntegrationTest` prüft das grüne Unterstützungs-Icon, den freiwilligen Hinweis,
+Abbrechen ohne externe Aktion, Öffnen erst nach ausdrücklicher Bestätigung und die
+Übersetzungen in allen vier Sprachen. Das Browser-Intent enthält ausschließlich den
+bereits in der README hinterlegten öffentlichen Stripe-Link, keine PDF-Daten oder
+Dateifreigaben. Tests lösen keine echte Zahlung aus.
 
 ## Große Bild-PDFs
 
