@@ -20,11 +20,18 @@ der bestätigten Vorschau ohne Klick oder Eckpunktänderung. Der Aktivitätstest
 denselben Ablauf nach dem Übernehmen: kein Rücksprung in die Eckpunktbearbeitung;
 „Anpassen“ bleibt der explizite Einstieg.
 
-Nach dem Übernehmen steht an derselben Position „Weiter“ mit Häkchen. Die
+Nach dem Übernehmen steht an derselben Position „Weiter“ mit Doppelpfeil (»). Die
 Aktivitätstests fangen externe Intents ab und prüfen, dass erst der Tipp darauf die
 zuletzt verwendete Kamera bzw. Bildauswahl öffnet; die Kameraquelle bleibt auch nach
 Entwurfswiederherstellung erhalten. Der Unterstützungstest prüft das Herz vor dem
 Link im Fußbereich.
+
+Die Seitenleiste zeigt beim Ziehen eine senkrechte Einfügelinie statt einer
+markierten Zielkachel. Tests prüfen die sichtbaren Pixel in hellem/dunklem Design,
+Positionen vor/zwischen/hinter den Seiten, Scroll-Offsets und das Ausblenden der
+Linie. Der Einfüge-Resolver prüft beide Ziehrichtungen und unveränderte Positionen.
+Am 15. Oktober 2026 erfolgreich: Build, JVM-Tests und Lint sowie je zehn gezielte
+Seitenleisten-/Scanner-Aktivitätstests auf API 31 und API 37.
 
 ## Feste APK-Signierung · 14. Oktober 2026
 

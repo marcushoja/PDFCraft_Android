@@ -11,6 +11,7 @@ import androidx.core.graphics.PathParser
 /** Local Material Symbols paths fetched through Iconify. Apache-2.0, Google. */
 object MaterialSymbols {
     private val paths = mapOf(
+        "continue" to "M5.6 5.6 4.2 7l5 5-5 5 1.4 1.4L12 12zM13.6 5.6 12.2 7l5 5-5 5 1.4 1.4L20 12z",
         "library_list" to "M3 5h4v4H3zM9 5h12v4H9zM3 10h4v4H3zM9 10h12v4H9zM3 15h4v4H3zM9 15h12v4H9z",
         "library_sort" to "M3 6h18v2H3zM3 11h12v2H3zM3 16h6v2H3z",
         "support" to "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z",

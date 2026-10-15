@@ -158,6 +158,59 @@ class ScanPageStripIntegrationTest {
         assertEquals(2 to 0, ScanPageStrip.resolveMove(pages.reversed(), "page-0", 0))
     }
 
+    @Test fun insertionSlotsMatchDropOrderInBothDirections() {
+        val pages=pages()
+        assertEquals(0 to 2,ScanPageStrip.resolveInsertionMove(pages,"page-0",3))
+        assertEquals(2 to 0,ScanPageStrip.resolveInsertionMove(pages,"page-2",0))
+        assertEquals(0 to 1,ScanPageStrip.resolveInsertionMove(pages,"page-0",2))
+        assertEquals(2 to 1,ScanPageStrip.resolveInsertionMove(pages,"page-2",1))
+        assertNull(ScanPageStrip.resolveInsertionMove(pages,"page-1",1))
+        assertNull(ScanPageStrip.resolveInsertionMove(pages,"page-1",2))
+        assertNull(ScanPageStrip.resolveInsertionMove(pages,"external",2))
+        assertNull(ScanPageStrip.resolveInsertionMove(emptyList(),"page-0",0))
+        assertEquals(0 to 2,ScanPageStrip.resolveInsertionMove(pages,"page-0",99))
+        assertEquals(2 to 0,ScanPageStrip.resolveInsertionMove(pages,"page-2",-99))
+    }
+
+    @Test fun insertionLineIsVisibleBetweenPagesAtEdgesAndAfterScrolling() {
+        instrumentation.runOnMainSync {
+            val density=context.resources.displayMetrics.density
+            fun dp(value:Int)=(value*density).toInt()
+            for(dark in listOf(false,true)) {
+                val strip=ScanPageStrip(context,dark)
+                strip.bind(pages(),0,onSelect={},onDelete={},onMove={_,_->})
+                strip.measure(View.MeasureSpec.makeMeasureSpec(dp(160),View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(dp(104),View.MeasureSpec.EXACTLY))
+                strip.layout(0,0,dp(160),dp(104))
+                val highlight=ScanPageStrip::class.java.getDeclaredMethod("highlight",Int::class.javaPrimitiveType).apply { isAccessible=true }
+                assertNull(strip.insertionMarkerBounds())
+                val rendered=Bitmap.createBitmap(strip.row.width,strip.row.height,Bitmap.Config.ARGB_8888)
+                try {
+                    for(slot in 0..3) {
+                        highlight.invoke(strip,slot)
+                        val bounds=requireNotNull(strip.insertionMarkerBounds())
+                        assertTrue(bounds.height()>bounds.width()*10)
+                        assertEquals(3f*density,bounds.width(),.1f)
+                        assertTrue(bounds.left>=0f);assertTrue(bounds.right<=strip.row.width)
+                        if(slot in 1..2) assertEquals(strip.row.getChildAt(slot).left.toFloat(),bounds.centerX(),.1f)
+                        strip.row.draw(Canvas(rendered))
+                        assertEquals(ZenColors.of(dark).accent,rendered.getPixel(bounds.centerX().toInt(),bounds.centerY().toInt()))
+                    }
+                    assertEquals(0,strip.insertionIndex(-dp(20).toFloat()))
+                    assertEquals(1,strip.insertionIndex(dp(41).toFloat()))
+                    assertEquals(3,strip.insertionIndex(dp(300).toFloat()))
+                    strip.scrollTo(dp(80),0)
+                    assertEquals(2,strip.insertionIndex(dp(41).toFloat()))
+                    highlight.invoke(strip,-1)
+                    assertNull(strip.insertionMarkerBounds())
+                    highlight.invoke(strip,1)
+                    strip.bind(pages(),0,enabled=false,onSelect={},onDelete={},onMove={_,_->})
+                    assertNull(strip.insertionMarkerBounds())
+                } finally { rendered.recycle() }
+            }
+        }
+    }
+
     @Test fun onlySmallThumbnailBuffersAreDecoded() {
         val tiny = File.createTempFile("strip-tiny-", ".jpg", context.cacheDir)
         val large = File.createTempFile("strip-large-", ".jpg", context.cacheDir)

@@ -3,7 +3,10 @@ package de.pdfcraft.android
 import android.content.ClipData
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
 import android.view.DragEvent
@@ -15,7 +18,6 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.view.ViewCompat
 import java.io.File
 
 data class ScanStripPage(val id: String, val thumbnail: File)
@@ -23,7 +25,16 @@ data class ScanStripPage(val id: String, val thumbnail: File)
 /** Thumbnail-only UI. The owner confirms deletion and persists every requested change. */
 class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(context) {
     private val colors = ZenColors.of(dark)
-    val row = LinearLayout(context).apply {
+    private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.accent }
+    val row: LinearLayout = object : LinearLayout(context) {
+        override fun dispatchDraw(canvas: Canvas) {
+            super.dispatchDraw(canvas)
+            insertionMarkerBounds()?.let { bounds ->
+                val radius = bounds.width() / 2f
+                canvas.drawRoundRect(bounds, radius, radius, markerPaint)
+            }
+        }
+    }.apply {
         id = R.id.scan_strip
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -51,7 +62,7 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
             }
             if (delta != 0) {
                 scrollBy(delta, 0)
-                highlight(targetIndex(hoverX))
+                highlight(insertionIndex(hoverX))
             }
             postOnAnimation(this)
         }
@@ -88,10 +99,9 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    private fun rounded(color: Int, stroke: Boolean = false) = GradientDrawable().apply {
+    private fun rounded(color: Int) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = dp(10).toFloat()
-        if (stroke) setStroke(dp(2), this@ScanPageStrip.colors.accent)
     }
 
     private fun render() {
@@ -186,24 +196,35 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
         }
     }
 
-    private fun targetIndex(viewportX: Float): Int {
+    internal fun insertionIndex(viewportX: Float): Int {
         val x = viewportX + scrollX
         for (index in 0 until row.childCount) {
-            if (x < row.getChildAt(index).right) return index
+            val item = row.getChildAt(index)
+            if (x < (item.left + item.right) / 2f) return index
         }
-        return row.childCount - 1
+        return row.childCount
+    }
+
+    /** In row/content coordinates, so drawing stays aligned during horizontal scrolling. */
+    internal fun insertionMarkerBounds(): RectF? {
+        if (highlighted !in 0..row.childCount || row.childCount == 0 || !actionsEnabled) return null
+        val half = 1.5f * resources.displayMetrics.density
+        val edge = if (highlighted == row.childCount) row.getChildAt(highlighted - 1).right.toFloat()
+            else row.getChildAt(highlighted).left.toFloat()
+        val x = edge.coerceIn(half, maxOf(half, row.width - half))
+        return RectF(x - half, dp(6).toFloat(), x + half, (row.height - dp(6)).toFloat())
     }
 
     private fun highlight(index: Int) {
         if (highlighted == index) return
         highlighted = index
+        row.invalidate()
         for (i in 0 until row.childCount) {
             val item = row.getChildAt(i)
-            item.isActivated = i == index
-            item.background = rounded(if (item.isSelected || item.isActivated) colors.tint else colors.card, item.isActivated)
-            ViewCompat.setStateDescription(item, if (item.isActivated) context.getString(R.string.scan_reorder_hint) else null)
+            item.isActivated = false
+            item.background = rounded(if (item.isSelected) colors.tint else colors.card)
         }
-        if (index >= 0) row.getChildAt(index)?.announceForAccessibility(context.getString(R.string.scan_page, index + 1))
+        if (index >= 0) row.getChildAt(index.coerceAtMost(row.childCount - 1))?.announceForAccessibility(context.getString(R.string.scan_page, index + 1))
     }
 
     private fun handleDrag(event: DragEvent, viewportX: Float): Boolean {
@@ -218,7 +239,7 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
             DragEvent.ACTION_DRAG_STARTED -> return true
             DragEvent.ACTION_DRAG_ENTERED, DragEvent.ACTION_DRAG_LOCATION -> {
                 hoverX = viewportX
-                highlight(targetIndex(viewportX))
+                highlight(insertionIndex(viewportX))
                 removeCallbacks(edgeScroll)
                 postOnAnimation(edgeScroll)
             }
@@ -227,7 +248,7 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
                 highlight(-1)
             }
             DragEvent.ACTION_DROP -> {
-                val requested = resolveMove(pages, token.pageId, targetIndex(viewportX))
+                val requested = resolveInsertionMove(pages, token.pageId, insertionIndex(viewportX))
                 finishDrag()
                 requested?.let { (from, to) -> move(from, to) }
                 return requested != null
@@ -249,6 +270,14 @@ class ScanPageStrip(context: Context, dark: Boolean) : HorizontalScrollView(cont
     }
 
     companion object {
+        /** Slots refer to the order before removal; compensate when dragging to the right. */
+        internal fun resolveInsertionMove(pages: List<ScanStripPage>, pageId: String, slot: Int): Pair<Int, Int>? {
+            val from = pages.indexOfFirst { it.id == pageId }
+            if (from < 0) return null
+            val boundary = slot.coerceIn(0, pages.size)
+            return resolveMove(pages, pageId, if (boundary > from) boundary - 1 else boundary)
+        }
+
         /** The same ID/current-order resolver used by ACTION_DROP, including edge overshoot. */
         internal fun resolveMove(pages: List<ScanStripPage>, pageId: String, targetIndex: Int): Pair<Int, Int>? {
             val from = pages.indexOfFirst { it.id == pageId }

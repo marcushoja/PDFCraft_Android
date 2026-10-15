@@ -274,7 +274,7 @@ class ScanActivity : ComponentActivity() {
             else confirmDeletePage(selected)
         }
         if(editing) action("check",R.string.scan_action_accept,R.string.scan_accept,R.id.scan_accept_button,true) { acceptCrop() }
-        else action("check",R.string.scan_action_continue,
+        else action("continue",R.string.scan_action_continue,
             if(cropFromCamera) R.string.scan_continue_camera else R.string.scan_continue_image,
             R.id.scan_next_button,true,enabled=pages.size<MAX_PAGES) {
             if(cropFromCamera) takePhoto() else pickImage()
