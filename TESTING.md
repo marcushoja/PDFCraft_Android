@@ -1,5 +1,23 @@
 # Prüfstand · 13. Oktober 2026
 
+## Randgesten und Zoom · 4. November 2026
+
+Umblättern startet nur im schmalen linken/rechten Randbereich. Ziehen an der
+Randmitte rollt die Seite horizontal, Ziehen nahe den Ecken weiterhin diagonal.
+Die Papierrückseite ist ohne durchscheinende Dokumentlinien; der Schlagschatten
+hat keine harte Schnittkante mehr. Vergrößerte Seiten begrenzen Verschieben und
+Nachlauf auf die aktuelle Seite bzw. Doppelseite, auch bei RTL und vertikalem Lesen.
+
+`PdfCurlIntegrationTest` ergänzt Prüfungen für Wischen aus der Mitte, horizontale
+Faltung am Seitenrand und überlange horizontale/vertikale Zoom-Gesten samt Nachlauf
+in Einzel-, Doppel-, Buch- und Endlosansicht, jeweils mit und ohne RTL.
+`PdfSpreadIntegrationTest` prüft zusätzlich ignorierte Wischgesten aus der Mitte.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 28 JVM-Tests und Android Lint.
+Die Android-Integrationstests wurden kompiliert, aber in diesem Durchlauf nicht
+ausgeführt: ADB antwortete nicht auf die Geräteabfrage. Eine visuelle Prüfung auf
+einem Gerät steht deshalb noch aus.
+
 ## Bibliotheksansicht und Scan-Vorschau
 
 Am 14. Oktober 2026 erfolgreich: Debug- und Test-APK gebaut, JVM-Tests und Lint sowie

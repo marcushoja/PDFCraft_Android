@@ -52,7 +52,7 @@ class PdfCurlIntegrationTest {
         }
         instrumentation.runOnMainSync {
             val w=reader.width.toFloat();val h=reader.height.toFloat()
-            event(MotionEvent.ACTION_DOWN,0,w*.84f,h*.78f)
+            event(MotionEvent.ACTION_DOWN,0,w*.96f,h*.78f)
             event(MotionEvent.ACTION_MOVE,100,w*.70f,h*.74f)
             event(MotionEvent.ACTION_MOVE,200,w*.48f,h*.70f)
             assertEquals("Page must not commit while the finger holds the fold",0,reader.currentPage)
@@ -76,7 +76,7 @@ class PdfCurlIntegrationTest {
             assertEquals(0,reader.currentPage)
             reader.setDarkPages(true)
             val w=reader.width.toFloat();val h=reader.height.toFloat()
-            event(MotionEvent.ACTION_DOWN,400,w*.84f,h*.78f)
+            event(MotionEvent.ACTION_DOWN,400,w*.96f,h*.78f)
             event(MotionEvent.ACTION_MOVE,500,w*.70f,h*.74f)
             event(MotionEvent.ACTION_MOVE,600,w*.48f,h*.70f)
             val image=Bitmap.createBitmap(reader.width,reader.height,Bitmap.Config.ARGB_8888)
@@ -98,7 +98,7 @@ class PdfCurlIntegrationTest {
             assertEquals(1,reader.currentPage)
             reader.goToPage(0)
             val w=reader.width.toFloat();val h=reader.height.toFloat()
-            event(MotionEvent.ACTION_DOWN,1000,w*.84f,h*.75f)
+            event(MotionEvent.ACTION_DOWN,1000,w*.96f,h*.75f)
             event(MotionEvent.ACTION_MOVE,1100,w*.81f,h*.75f)
             // Simulate a coalesced event stream: no final MOVE reaches the application.
             event(MotionEvent.ACTION_UP,1500,w*.20f,h*.75f)
@@ -110,7 +110,7 @@ class PdfCurlIntegrationTest {
             reader.setRightToLeft(true)
             reader.goToPage(0)
             val w = reader.width.toFloat(); val h = reader.height.toFloat()
-            event(MotionEvent.ACTION_DOWN,2000,w*.16f,h*.75f)
+            event(MotionEvent.ACTION_DOWN,2000,w*.04f,h*.75f)
             event(MotionEvent.ACTION_MOVE,2200,w*.52f,h*.70f)
             assertEquals("RTL fold still holds the logical source page",0,reader.currentPage)
             val cornerField = PdfReaderView::class.java.getDeclaredField("curlCorner").apply { isAccessible = true }
@@ -125,5 +125,105 @@ class PdfCurlIntegrationTest {
             reader.close();activity.finish()
         }
         file.delete()
+    }
+
+    @Test fun onlyEdgesTurnSidePullsStayHorizontalAndZoomCannotLeavePage() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val file = File.createTempFile("edge-zoom-test-", ".pdf", context.cacheDir)
+        val pdf = PdfDocument()
+        try {
+            repeat(5) { index ->
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(480, 720, index + 1).create())
+                page.canvas.drawColor(Color.WHITE)
+                pdf.finishPage(page)
+            }
+            file.outputStream().use { pdf.writeTo(it) }
+        } finally { pdf.close() }
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val rendered = CountDownLatch(1)
+        lateinit var reader: PdfReaderView
+        val turning = PdfReaderView::class.java.getDeclaredField("turning").apply { isAccessible = true }
+        val corner = PdfReaderView::class.java.getDeclaredField("curlCorner").apply { isAccessible = true }
+        val finger = PdfReaderView::class.java.getDeclaredField("curlFinger").apply { isAccessible = true }
+        val zoom = PdfReaderView::class.java.getDeclaredMethod("changeZoom", Float::class.javaPrimitiveType,
+            Float::class.javaPrimitiveType, Float::class.javaPrimitiveType).apply { isAccessible = true }
+        instrumentation.runOnMainSync {
+            reader = PdfReaderView(activity)
+            activity.setContentView(reader)
+            reader.setReadingMode(ReadingMode.SINGLE)
+            reader.setFitPage(true)
+            reader.onFirstPageRendered = { rendered.countDown() }
+            reader.open(file, initialPage = 2)
+        }
+        try {
+            assertTrue(rendered.await(15, TimeUnit.SECONDS))
+            instrumentation.waitForIdleSync()
+            fun drag(from: Float, to: Float, vertical: Boolean = false) {
+                val start = SystemClock.uptimeMillis()
+                for ((action, x, dt) in listOf(Triple(MotionEvent.ACTION_DOWN, from, 0L),
+                    Triple(MotionEvent.ACTION_MOVE, to, 40L),
+                    Triple(MotionEvent.ACTION_UP, to, 60L))) {
+                    val event = MotionEvent.obtain(start, start + dt, action,
+                        reader.width * if (vertical) .5f else x,
+                        reader.height * if (vertical) x else .5f, 0)
+                    reader.onTouchEvent(event)
+                    event.recycle()
+                }
+            }
+            instrumentation.runOnMainSync {
+                drag(.5f, .02f)
+                assertFalse("Center-origin swipe must not start a turn", turning.getBoolean(reader))
+                drag(.5f, .98f)
+                assertFalse("Center-origin reverse swipe must not start a turn", turning.getBoolean(reader))
+                val start = SystemClock.uptimeMillis()
+                for ((action, x) in listOf(MotionEvent.ACTION_DOWN to .96f, MotionEvent.ACTION_MOVE to .6f)) {
+                    val event = MotionEvent.obtain(start, start + if (action == MotionEvent.ACTION_DOWN) 0 else 80,
+                        action, reader.width * x, reader.height * .5f, 0)
+                    reader.onTouchEvent(event); event.recycle()
+                }
+                assertTrue("Right-edge pull must start a fold", turning.getBoolean(reader))
+                val c = corner.get(reader) as android.graphics.PointF
+                val f = finger.get(reader) as android.graphics.PointF
+                assertEquals("Middle-edge fold must be anchored at touch height", reader.height * .5f, c.y, 1f)
+                assertEquals("Middle-edge fold must roll sideways, not from a corner", c.y, f.y, .001f)
+                val cancel = MotionEvent.obtain(start, start + 100, MotionEvent.ACTION_CANCEL,
+                    reader.width * .6f, reader.height * .5f, 0)
+                reader.onTouchEvent(cancel); cancel.recycle()
+            }
+            Thread.sleep(400)
+            for (mode in listOf(ReadingMode.SINGLE, ReadingMode.SPREAD, ReadingMode.BOOK, ReadingMode.CONTINUOUS)) {
+                for (rtl in listOf(false, true)) {
+                    instrumentation.runOnMainSync {
+                        reader.resetZoom()
+                        reader.setReadingMode(mode)
+                        reader.setRightToLeft(rtl)
+                        reader.goToPage(2)
+                        zoom.invoke(reader, 2.5f, reader.width * .5f, reader.height * .5f)
+                        assertEquals(2, reader.currentPage)
+                        repeat(4) { drag(.96f, -2f) }
+                        repeat(4) { drag(.96f, -2f, vertical = true) }
+                        assertEquals("Long zoomed pan must stay on page: $mode RTL=$rtl", 2, reader.currentPage)
+                    }
+                    Thread.sleep(400)
+                    instrumentation.runOnMainSync {
+                        reader.computeScroll()
+                        assertEquals("Zoomed fling must stay on page: $mode RTL=$rtl", 2, reader.currentPage)
+                        repeat(4) { drag(.04f, 3f) }
+                        repeat(4) { drag(.04f, 3f, vertical = true) }
+                        assertEquals("Reverse zoomed pan must stay on page: $mode RTL=$rtl", 2, reader.currentPage)
+                    }
+                    Thread.sleep(400)
+                    instrumentation.runOnMainSync {
+                        reader.computeScroll()
+                        assertEquals("Reverse zoomed fling must stay on page", 2, reader.currentPage)
+                    }
+                }
+            }
+        } finally {
+            instrumentation.runOnMainSync { reader.close(); activity.finish() }
+            file.delete()
+        }
     }
 }
