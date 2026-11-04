@@ -4,8 +4,7 @@
 
 Umblättern startet nur im schmalen linken/rechten Randbereich. Ziehen an der
 Randmitte rollt die Seite horizontal, Ziehen nahe den Ecken weiterhin diagonal.
-Die Papierrückseite ist ohne durchscheinende Dokumentlinien; der Schlagschatten
-hat keine harte Schnittkante mehr. Vergrößerte Seiten begrenzen Verschieben und
+Der Schlagschatten hat keine harte Schnittkante mehr. Vergrößerte Seiten begrenzen Verschieben und
 Nachlauf auf die aktuelle Seite bzw. Doppelseite, auch bei RTL und vertikalem Lesen.
 
 `PdfCurlIntegrationTest` ergänzt Prüfungen für Wischen aus der Mitte, horizontale
@@ -17,6 +16,16 @@ Lokal erfolgreich: Debug-APK, Test-APK, alle 28 JVM-Tests und Android Lint.
 Die Android-Integrationstests wurden kompiliert, aber in diesem Durchlauf nicht
 ausgeführt: ADB antwortete nicht auf die Geräteabfrage. Eine visuelle Prüfung auf
 einem Gerät steht deshalb noch aus.
+
+Die Rückseite zeigt anschließend wieder den Inhalt der aktuellen Seite: durch die
+Mesh-Geometrie spiegelverkehrt, neutral abgedunkelt, entsättigt und kontrastärmer.
+Eine auf 768 Pixel begrenzte, zwischengespeicherte Textur mildert feine Details ohne
+Blur pro Animationsbild. Gesten, Faltung und Schatten bleiben unverändert.
+Ein zusätzlicher JVM-Test prüft die gespiegelte Pixelreihenfolge für beide
+Blätterrichtungen; ein Android-Test prüft Rückseitenkontrast, erhaltene Details,
+Textur-Wiederverwendung und den Nachtmodus.
+Auch diese Ergänzung: Debug- und Test-APK, alle 29 JVM-Tests und Lint erfolgreich;
+Android-Tests wegen nicht antwortendem ADB nur kompiliert, nicht ausgeführt.
 
 ## Bibliotheksansicht und Scan-Vorschau
 

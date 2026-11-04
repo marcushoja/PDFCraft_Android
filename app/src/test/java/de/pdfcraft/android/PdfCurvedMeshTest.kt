@@ -6,6 +6,16 @@ import kotlin.math.PI
 import kotlin.math.abs
 
 class PdfCurvedMeshTest {
+    @Test fun backsideReversesTextureOrderWithoutMirroringTheSourceAgain() {
+        for ((edge, finger) in listOf(1000f to 400f, 0f to 600f)) {
+            val mesh = PdfCurvedMesh(PdfCurlGeometry(edge, 500f, finger, 500f))
+            val a = mesh.project(if (edge == 0f) 0f else 950f, 500f)
+            val b = mesh.project(if (edge == 0f) 50f else 1000f, 500f)
+            assertTrue(a.back && b.back)
+            assertTrue("Left-to-right source pixels must appear right-to-left on the back", a.x > b.x)
+        }
+    }
+
     @Test fun curvedBandIsNonAffineWithStrongDepthAndSeparateBackside() {
         val fold = PdfCurlGeometry(1000f, 1000f, 400f, 1000f)
         val mesh = PdfCurvedMesh(fold)

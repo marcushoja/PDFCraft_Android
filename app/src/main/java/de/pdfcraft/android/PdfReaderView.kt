@@ -180,6 +180,8 @@ class PdfReaderView(context: Context) : View(context) {
     private val meshVertex=FloatArray(5)
     private var nightMeshSource:Bitmap?=null
     private var nightMeshImage:Bitmap?=null
+    private var backMeshSource: Bitmap? = null
+    private var backMeshImage: Bitmap? = null
     private val meshFrontPaint=Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
     private fun frontTexture(source:Bitmap):Bitmap {
@@ -190,6 +192,34 @@ class PdfReaderView(context: Context) : View(context) {
             catch(_:OutOfMemoryError) { nightMeshSource=source;nightMeshImage=source;return source }
         Canvas(image).drawBitmap(source,null,RectF(0f,0f,image.width.toFloat(),image.height.toFloat()),pagePaint)
         nightMeshSource=source;nightMeshImage=image
+        return image
+    }
+
+    private fun backTexture(source: Bitmap): Bitmap {
+        if (backMeshSource === source) backMeshImage?.let { return it }
+        // A small cached texture gently softens fine print without a per-frame blur.
+        val scale = min(1f, 768f / max(source.width, source.height))
+        val image = try {
+            Bitmap.createBitmap(max(1, (source.width * scale).toInt()),
+                max(1, (source.height * scale).toInt()), Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) { return meshPaper }
+        val tone = ColorMatrix().apply {
+            setSaturation(.25f)
+            val offset = if (darkPages) 12f else 65f
+            postConcat(ColorMatrix(floatArrayOf(
+                .65f, 0f, 0f, 0f, offset,
+                0f, .65f, 0f, 0f, offset,
+                0f, 0f, .65f, 0f, offset,
+                0f, 0f, 0f, 1f, 0f)))
+        }
+        // Bake the filter: older Canvas mesh paths ignore paint filters with vertex colors.
+        Canvas(image).drawBitmap(frontTexture(source), null,
+            RectF(0f, 0f, image.width.toFloat(), image.height.toFloat()),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = ColorMatrixColorFilter(tone)
+            })
+        backMeshSource = source
+        backMeshImage = image
         return image
     }
 
@@ -380,6 +410,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun close() {
         nightMeshSource=null;nightMeshImage=null
+        backMeshSource = null; backMeshImage = null
         pendingAnnotationSource=null
         preparingAnnotations=false
         renderRevision=0
@@ -449,7 +480,10 @@ class PdfReaderView(context: Context) : View(context) {
         if (this.mode == mode) return
         val saved = position()
         this.mode = mode
-        if(mode!=ReadingMode.SINGLE) { nightMeshSource=null;nightMeshImage=null }
+        if(mode!=ReadingMode.SINGLE) {
+            nightMeshSource=null;nightMeshImage=null
+            backMeshSource = null; backMeshImage = null
+        }
         stopAnimations()
         rebuildLayout()
         lastReported = null // Group labels can change even when the exact saved page does not.
@@ -468,6 +502,7 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun setDarkPages(enabled: Boolean) {
         darkPages = enabled
+        backMeshSource = null; backMeshImage = null
         if(!enabled) { nightMeshSource=null;nightMeshImage=null }
         pagePaint.colorFilter = if (enabled) ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
             -1f, 0f, 0f, 0f, 255f,
@@ -1087,16 +1122,18 @@ class PdfReaderView(context: Context) : View(context) {
                 vertices[index * 2 + 1] = meshVertex[1]
                 val shade = (255 * meshVertex[4]).toInt()
                 frontColors[index] = Color.argb(if (meshVertex[3]>0f) 0 else 255, shade, shade, shade)
-                val base = if (darkPages) 65 else 239
-                val red = (base * meshVertex[4]).toInt()
-                backColors[index] = Color.argb(if (meshVertex[3]>0f) 255 else 0, red,
-                    (red * .97f).toInt(), (red * .90f).toInt())
+                val backShade = (235 * meshVertex[4]).toInt()
+                backColors[index] = Color.argb(if (meshVertex[3]>0f) 255 else 0,
+                    backShade, backShade, backShade)
             }
             canvas.drawBitmapMesh(frontTexture(bitmapFor(first) ?: meshPaper), columns, rows, vertices, 0,
                 frontColors, 0, meshFrontPaint)
             backPaint.colorFilter = null
             backPaint.alpha = 255
-            canvas.drawBitmapMesh(meshPaper, columns, rows, vertices, 0, backColors, 0, backPaint)
+            // The shared UV grid already mirrors the back-facing sheet through the fold;
+            // mirroring the bitmap again would incorrectly make its text read forwards.
+            canvas.drawBitmapMesh(backTexture(bitmapFor(first) ?: meshPaper), columns, rows,
+                vertices, 0, backColors, 0, backPaint)
             shadowPaint.shader = null
         }
 

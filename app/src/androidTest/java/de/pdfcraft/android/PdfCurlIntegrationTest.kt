@@ -18,6 +18,42 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PdfCurlIntegrationTest {
+    @Test fun backsideTextureRetainsPageDetailsWithMutedColorsAndCachesPerTheme() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val reader = PdfReaderView(instrumentation.targetContext)
+            val source = Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
+            source.eraseColor(Color.WHITE)
+            Canvas(source).drawRect(0f, 0f, 40f, 80f, android.graphics.Paint().apply { color = Color.BLACK })
+            Canvas(source).drawRect(40f, 0f, 80f, 80f, android.graphics.Paint().apply { color = Color.RED })
+            val texture = PdfReaderView::class.java.getDeclaredMethod("backTexture", Bitmap::class.java)
+                .apply { isAccessible = true }
+            try {
+                val back = texture.invoke(reader, source) as Bitmap
+                assertSame("Texture should be reused during animation", back, texture.invoke(reader, source))
+                val ink = back.getPixel(20, 40)
+                val paper = back.getPixel(100, 40)
+                val colored = back.getPixel(60, 40)
+                assertTrue("Dark print must stay visible, but with reduced contrast", Color.red(ink) in 40..100)
+                assertTrue("Paper should be darker than the white front", Color.red(paper) in 200..245)
+                assertTrue("Print and paper must remain clearly distinguishable", Color.red(paper) - Color.red(ink) > 100)
+                assertTrue("Colors should be desaturated", Color.red(colored) - Color.green(colored) in 20..80)
+                assertEquals("Source texture must remain untouched", Color.BLACK, source.getPixel(20, 40))
+                reader.setDarkPages(true)
+                val night = texture.invoke(reader, source) as Bitmap
+                assertNotSame(back, night)
+                assertTrue("Night paper must remain dark", Color.red(night.getPixel(100, 40)) < 40)
+                assertTrue("Night print must remain visible", Color.red(night.getPixel(20, 40)) > 150)
+                reader.setDarkPages(false)
+                val restored = texture.invoke(reader, source) as Bitmap
+                assertEquals(paper, restored.getPixel(100, 40))
+            } finally {
+                reader.close()
+                source.recycle()
+            }
+        }
+    }
+
     @Test fun fingerFoldShowsBacksideAndCancelKeepsPage() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
@@ -62,7 +98,8 @@ class PdfCurlIntegrationTest {
             for(y in image.height/4 until image.height*4/5 step 8) for(x in image.width/4 until image.width*4/5 step 8) {
                 val c=image.getPixel(x,y)
                 if(Color.red(c)>180 && Color.green(c)<60 && Color.blue(c)<60) front++
-                if(Color.red(c)>140 && Color.green(c)>130 && Color.blue(c)>110) backside++
+                if(Color.red(c)>70 && Color.green(c)>35 && Color.blue(c)>35 &&
+                    Color.red(c)>=Color.green(c) && kotlin.math.abs(Color.green(c)-Color.blue(c))<25) backside++
             }
             if(backside<=30) File(context.cacheDir,"integration-curl-debug-${android.os.Build.VERSION.SDK_INT}.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG,100,it) }
             image.recycle()
