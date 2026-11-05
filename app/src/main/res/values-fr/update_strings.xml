@@ -2,10 +2,10 @@
     <string name="library_menu">Menu de la bibliothèque</string>
     <string name="update_check">Vérifier les mises à jour</string>
     <string name="update_checking">Recherche de mises à jour…</string>
-    <string name="update_current">PDFCraft est à jour.</string>
+    <string name="update_current">PDFPauli est à jour.</string>
     <string name="update_offline">Aucune connexion Internet. Réessayez une fois connecté.</string>
     <string name="update_failed">Vérification impossible. Réessayez plus tard.</string>
-    <string name="update_available">PDFCraft %1$s disponible</string>
+    <string name="update_available">PDFPauli %1$s disponible</string>
     <string name="update_download">Télécharger</string>
     <string name="update_dismiss">Masquer cette mise à jour</string>
     <string name="update_no_browser">Aucune application disponible pour ouvrir le téléchargement.</string>

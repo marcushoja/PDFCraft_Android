@@ -1,10 +1,12 @@
-# PDFCraft Android
+# PDFPauli Android
 
-[![☕ Buy me a coffee](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-4F7D53?style=for-the-badge)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![☕ Buy me a coffee](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-147D96?style=for-the-badge)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
 [Download PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk)
 
-Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
+Many hours of development and testing have gone into PDFPauli. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
+
+PDFPauli uses turquoise from its unicorn icon in both light and dark themes. The app icon also appears beside the library title and in **About PDFPauli**. The existing application ID, repository and `PDFCraft.apk` release filename remain unchanged for update compatibility.
 
 **Buy me a coffee** beneath the author credits opens a friendly support message. The confirmation in that dialog opens the existing Stripe support page in your browser only when you choose to continue. There is no separate support icon next to the library menu. Support is optional and does not unlock features or affect access to your PDFs.
 
@@ -14,9 +16,9 @@ Get the latest installable APK from [GitHub Releases](https://github.com/marcush
 
 Every push to `main` automatically builds and checks the app and publishes a release with its SHA-256 checksum. These are **developer-signed preview builds**, not Play Store releases. GitHub builds use the fixed project signing key from the `PDFCRAFT_SIGNING_BUNDLE` secret; its certificate is checked before publication. Releases from build 11 onward support normal updates without uninstalling. Older releases may require a one-time reinstall: save important documents first. Local builds without the release signing environment use a different debug key and cannot update GitHub builds directly. See [SIGNING.md](SIGNING.md).
 
-On opening the app, PDFCraft checks GitHub Releases in the background when Internet access is available, at most once every 24 hours after a successful check. If offline or a check fails, it silently tries again the next time the app is opened. A small notice in the library offers **Download**, which opens the official version-specific APK URL in your browser. Android still asks you to confirm installation. Closing a notice hides that release permanently, but not future releases. There are no update dialogs over an open PDF and no background APK downloads.
+On opening the app, PDFPauli checks GitHub Releases in the background when Internet access is available, at most once every 24 hours after a successful check. If offline or a check fails, it silently tries again the next time the app is opened. A small notice in the library offers **Download**, which opens the official version-specific APK URL in your browser. Android still asks you to confirm installation. Closing a notice hides that release permanently, but not future releases. There are no update dialogs over an open PDF and no background APK downloads.
 
-The library hamburger menu offers only **Check for updates** and **About PDFCraft**. The sun/moon button immediately to its left switches the app theme. Reading settings remain in the opened PDF's menu. An explicit update check bypasses the daily interval and also offers a previously dismissed update, with feedback if the app is current, offline, or the check fails.
+The library hamburger menu offers only **Check for updates** and **About PDFPauli**. The sun/moon button immediately to its left switches the app theme. Reading settings remain in the opened PDF's menu. An explicit update check bypasses the daily interval and also offers a previously dismissed update, with feedback if the app is current, offline, or the check fails.
 
 ## Features
 

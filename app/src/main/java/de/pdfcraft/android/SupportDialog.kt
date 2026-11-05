@@ -22,7 +22,7 @@ object SupportDialog {
         }
     }):AlertDialog=AlertDialog.Builder(context)
         .setTitle(R.string.support_title)
-        .setIcon(MaterialSymbols.drawable(context,"support",0xff4f7d53.toInt()))
+        .setIcon(MaterialSymbols.drawable(context,"support",ZenColors.light.accent))
         .setMessage(R.string.support_message)
         .setPositiveButton(R.string.support_action) { _,_ -> onSupport() }
         .setNegativeButton(R.string.support_close,null)

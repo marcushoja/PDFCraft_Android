@@ -208,7 +208,7 @@ class PdfMarkup(context: Context) {
                             ), PDDeviceRGB.INSTANCE)
                             constantOpacity = if (style == TextMarkupStyle.HIGHLIGHT) 0.4f else 1f
                             contents = query
-                            titlePopup = "PDFCraft"
+                            titlePopup = "PDFPauli"
                             isPrinted = true
                             this.page = target
                             constructAppearances(document)
@@ -242,7 +242,7 @@ class PdfMarkup(context: Context) {
                 rectangle=PDRectangle(left,bottom,width,height);quadPoints=quad.copyOf()
                 this.color=PDColor(floatArrayOf(Color.red(color)/255f,Color.green(color)/255f,Color.blue(color)/255f),PDDeviceRGB.INSTANCE)
                 constantOpacity=if(style==TextMarkupStyle.HIGHLIGHT) .4f else 1f
-                contents=text;titlePopup="PDFCraft";isPrinted=true;this.page=target;constructAppearances(document)
+                contents=text;titlePopup="PDFPauli";isPrinted=true;this.page=target;constructAppearances(document)
             })
         }
     }

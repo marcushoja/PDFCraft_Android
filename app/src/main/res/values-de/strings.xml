@@ -308,6 +308,6 @@
     <string name="ui_case_insensitive">Groß-/Kleinschreibung wird ignoriert.</string>
     <string name="ui_search_progress">Groß-/Kleinschreibung wird ignoriert.\nSeite %1$s von %2$s</string>
     <string name="ui_creator_footer">Von %1$s\nOffline · private Kopien</string>
-    <string name="ui_about">Über PDFCraft</string>
-    <string name="ui_about_message">PDFCraft Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.</string>
+    <string name="ui_about">Über PDFPauli</string>
+    <string name="ui_about_message">PDFPauli Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.</string>
 </resources>

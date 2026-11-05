@@ -68,7 +68,7 @@ class SupportIntegrationTest {
     }
 
     @Test fun supportNoticeIsLocalizedInAllFourLanguages() {
-        val titles=mapOf("de" to "PDFCraft unterstützen","en" to "Support PDFCraft","fr" to "Soutenir PDFCraft","es" to "Apoyar PDFCraft")
+        val titles=mapOf("de" to "PDFPauli unterstützen","en" to "Support PDFPauli","fr" to "Soutenir PDFPauli","es" to "Apoyar PDFPauli")
         val actions=mapOf("de" to "Kaffee spendieren","en" to "Buy me a coffee","fr" to "Offrir un café","es" to "Invitar a un café")
         for((tag,title) in titles) {
             val localized=context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocales(LocaleList.forLanguageTags(tag)) })

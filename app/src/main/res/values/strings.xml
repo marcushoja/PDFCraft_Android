@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name" translatable="false">PDFPauli</string>
     <string name="ui_layout_hint">Spreads fit together; comics fit the width. Curved page turning requires single pages without zoom.</string>
     <string name="ui_reading_layout">Reading layout</string>
     <string name="ui_layout_spread">Two pages · side by side</string>
@@ -308,6 +309,6 @@
     <string name="ui_case_insensitive">Search is case-insensitive.</string>
     <string name="ui_search_progress">Search is case-insensitive.\nPage %1$s of %2$s</string>
     <string name="ui_creator_footer">By %1$s\nOffline · private copies</string>
-    <string name="ui_about">About PDFCraft</string>
-    <string name="ui_about_message">PDFCraft Android\nBy Marcus Hoja\nA private PDF reader. Offline and without an account.</string>
+    <string name="ui_about">About PDFPauli</string>
+    <string name="ui_about_message">PDFPauli Android\nBy Marcus Hoja\nA private PDF reader. Offline and without an account.</string>
 </resources>

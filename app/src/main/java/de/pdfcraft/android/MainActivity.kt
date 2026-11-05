@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
     private var fullscreenExit: View? = null
     private var pendingExport: File? = null
     private var unlocked: UnlockedPdf? = null
-    private var exportName = "PDFCraft.pdf"
+    private var exportName = "PDFPauli.pdf"
     private var documentId: String? = null
     private var chromeVisible = true
     private var topBar: View? = null
@@ -240,8 +240,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showAbout() {
-        LocalizedDialogBuilder(this).setTitle("Über PDFCraft")
-            .setMessage("PDFCraft Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.")
+        LocalizedDialogBuilder(this).setTitle("Über PDFPauli")
+            .setMessage("PDFPauli Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.")
+            .apply { setIcon(R.drawable.ic_launcher) }
             .setPositiveButton("OK", null).show()
     }
 
@@ -561,7 +562,7 @@ class MainActivity : ComponentActivity() {
                     addView(text("", 14f, ink).apply { gravity = Gravity.CENTER; minHeight = dp(36) })
                 }
                 (cell.getChildAt(1) as TextView).text = "${pages[position] + 1}" + if (doc.bookmarks.contains(pages[position])) " ★" else ""
-                cell.setBackgroundColor(if (pages[position] in view.visiblePages) if (dark) 0xff304d3d.toInt() else 0xffe0ede3.toInt() else card)
+                cell.setBackgroundColor(if (pages[position] in view.visiblePages) ZenColors.of(dark).tint else card)
                 val image=(cell.getChildAt(0) as FrameLayout).getChildAt(1) as ImageView
                 val width=((resources.displayMetrics.widthPixels-dp(48))/grid.numColumns).coerceIn(dp(72),dp(150))
                 thumbnails.load(viewingFile(doc), pages[position],width,image,priority=10)
@@ -832,7 +833,7 @@ class MainActivity : ComponentActivity() {
         val bitmap = android.graphics.Bitmap.createBitmap(source.width,source.height,android.graphics.Bitmap.Config.ARGB_8888)
         source.draw(android.graphics.Canvas(bitmap))
         io.execute {
-            val result = runCatching { File(cacheDir,"exports").apply { mkdirs() }.let { dir -> File.createTempFile("PDFCraft-Seite-",".png",dir).also { file -> file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } } }
+            val result = runCatching { File(cacheDir,"exports").apply { mkdirs() }.let { dir -> File.createTempFile("PDFPauli-Seite-",".png",dir).also { file -> file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) } } } }
             bitmap.recycle()
             handler.post { if (!isDestroyed) result.fold({ file -> share(file,"image/png") }, { error("Screenshot fehlgeschlagen") }) }
         }
@@ -1095,7 +1096,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun error(message: String) {
-        if (!isFinishing && !isDestroyed) LocalizedDialogBuilder(this).setTitle("PDFCraft").setMessage(message).setPositiveButton("OK", null).show()
+        if (!isFinishing && !isDestroyed) LocalizedDialogBuilder(this).setTitle("PDFPauli").setMessage(message).setPositiveButton("OK", null).show()
     }
 
     override fun onPause() { persistPosition(); super.onPause() }

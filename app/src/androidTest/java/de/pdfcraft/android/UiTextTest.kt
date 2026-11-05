@@ -79,9 +79,9 @@ class UiTextTest {
             UiText.t(context, "Von Marcus Hoja\nOffline · private Kopien"))
         assertEquals("By Öffnen\nOffline · private copies",
             UiText.t(context, "Von Öffnen\nOffline · private Kopien"))
-        assertEquals("About PDFCraft", UiText.t(context, "Über PDFCraft"))
-        assertEquals("PDFCraft Android\nBy Marcus Hoja\nA private PDF reader. Offline and without an account.",
-            UiText.t(context, "PDFCraft Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto."))
+        assertEquals("About PDFPauli", UiText.t(context, "Über PDFPauli"))
+        assertEquals("PDFPauli Android\nBy Marcus Hoja\nA private PDF reader. Offline and without an account.",
+            UiText.t(context, "PDFPauli Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto."))
     }
 
     @Test fun germanTemplatesRoundTripAcrossTheWholeCatalog() {

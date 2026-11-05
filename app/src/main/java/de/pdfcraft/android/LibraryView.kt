@@ -60,7 +60,7 @@ class LibraryView(
                     setPadding(dp(12),dp(12),dp(12),dp(12))
                     setImageDrawable(MaterialSymbols.drawable(context,"more",muted))
                     background=android.graphics.drawable.RippleDrawable(
-                        android.content.res.ColorStateList.valueOf(0x33507453),
+                        android.content.res.ColorStateList.valueOf((accent and 0x00ffffff) or 0x33000000),
                         android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),rounded(Color.WHITE,14))
                     contentDescription = UiText.t(context,"Dokumentoptionen")
                 }, FrameLayout.LayoutParams(dp(48),dp(48),Gravity.END or Gravity.TOP))
@@ -99,7 +99,15 @@ class LibraryView(
     init {
         orientation = VERTICAL
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(12),dp(12),dp(6)) }
-        header.addView(label("PDFCraft", 24f).apply { setTypeface(typeface, Typeface.BOLD) }, LayoutParams(0,-2,1f))
+        header.addView(ImageView(context).apply {
+            setImageResource(R.drawable.ic_launcher)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(dp(44),dp(44)).apply { marginEnd = dp(10) })
+        header.addView(label(context.getString(R.string.app_name), 24f).apply {
+            setTypeface(typeface, Typeface.BOLD)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, LayoutParams(0,-2,1f))
         onToggleDark?.let { toggle ->
             header.addView(iconAction(if (dark) "sun" else "moon",
                 if (dark) R.string.library_light_mode else R.string.library_dark_mode, toggle).apply {
@@ -173,7 +181,7 @@ class LibraryView(
         }.apply {
             textSize = 12f; gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(0,0,0,0)
             compoundDrawablePadding = dp(4)
-            setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"support",if(dark) 0xffa5d6a7.toInt() else 0xff4f7d53.toInt()),null,null,null)
+            setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"support",accent),null,null,null)
             paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
         })
         bottom.addView(credits,LayoutParams(0,-2,1f))

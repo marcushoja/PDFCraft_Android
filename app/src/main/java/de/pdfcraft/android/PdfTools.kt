@@ -143,7 +143,7 @@ class PdfTools(context: Context) {
         val inset = minOf(12f, (box.width - size) / 2f, (box.height - size) / 2f).coerceAtLeast(0f)
         val note = PDAnnotationText().apply {
             contents = text
-            titlePopup = "PDFCraft"
+            titlePopup = "PDFPauli"
             name = PDAnnotationText.NAME_NOTE
             rectangle = PDRectangle(box.lowerLeftX + inset, box.upperRightY - inset - size, size, size)
             setOpen(false)

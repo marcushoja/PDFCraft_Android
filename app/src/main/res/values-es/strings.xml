@@ -308,6 +308,6 @@
     <string name="ui_case_insensitive">La búsqueda no distingue entre mayúsculas y minúsculas.</string>
     <string name="ui_search_progress">La búsqueda no distingue entre mayúsculas y minúsculas.\nPágina %1$s de %2$s</string>
     <string name="ui_creator_footer">Por %1$s\nSin conexión · copias privadas</string>
-    <string name="ui_about">Acerca de PDFCraft</string>
-    <string name="ui_about_message">PDFCraft Android\nPor Marcus Hoja\nUn lector PDF privado. Sin conexión y sin cuenta.</string>
+    <string name="ui_about">Acerca de PDFPauli</string>
+    <string name="ui_about_message">PDFPauli Android\nPor Marcus Hoja\nUn lector PDF privado. Sin conexión y sin cuenta.</string>
 </resources>

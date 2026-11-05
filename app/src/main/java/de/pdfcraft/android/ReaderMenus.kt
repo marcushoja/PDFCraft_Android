@@ -3,7 +3,7 @@ package de.pdfcraft.android
 internal object ReaderMenus {
     fun library(updateLabel: String) = listOf(
         ReaderAction("updates", updateLabel, "reload"),
-        ReaderAction("about", "Über PDFCraft", "info"),
+        ReaderAction("about", "Über PDFPauli", "info"),
     )
 
     fun pdf(reflow: Boolean) = listOf(

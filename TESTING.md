@@ -1,5 +1,22 @@
 # Prüfstand · 13. Oktober 2026
 
+## PDFPauli und Einhorn-Türkis · 5. November 2026
+
+App-Label, Bibliothek, Über-Dialog, Unterstützung und Update-Texte heißen in allen
+vier Sprachen PDFPauli. Das App-Icon steht links neben dem Bibliothekstitel und im
+Über-Dialog. Helle und dunkle Oberflächen sowie Launcher-Hintergründe verwenden
+Türkis aus dem Einhorn statt Grün. Paketkennung, Signierung und Release-URLs bleiben
+unverändert, einschließlich des kompatiblen Dateinamens `PDFCraft.apk`.
+
+Ein neuer JVM-Test prüft die Einhorn-Akzentfarben und mindestens 4,5:1 Kontrast auf
+Papier-, Karten- und getönten Flächen beider Themes. Ein neuer Android-Test prüft
+App-Label, Icon und Titel im Bibliothekskopf beider Themes sowie den Über-Dialog.
+Bestehende Sprach-, Unterstützungs- und Annotationstests verwenden den neuen Namen.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 54 JVM-Tests und Android Lint.
+Android-Tests wurden nur kompiliert, nicht ausgeführt: Die ADB-Geräteabfrage läuft
+in eine Zeitüberschreitung. Eine visuelle Geräteprüfung steht noch aus.
+
 ## Blätterbereich: äußere zwanzig Prozent
 
 Blättern kann links bei 0–20 % und rechts bei 80–100 % der Reader-Breite beginnen,

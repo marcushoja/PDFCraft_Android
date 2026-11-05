@@ -104,7 +104,7 @@ class PdfMarkupIntegrationTest {
             annotations.forEachIndexed { index, annotation ->
                 assertEquals("Highlight", annotation.subtype)
                 assertEquals("hello", annotation.contents)
-                assertEquals("PDFCraft", annotation.titlePopup)
+                assertEquals("PDFPauli", annotation.titlePopup)
                 assertArrayEquals(floatArrayOf(1f, 1f, 0f), annotation.color.components, 0.001f)
                 assertNotNull(annotation.normalAppearanceStream)
                 assertTrue(annotation.isPrinted)
