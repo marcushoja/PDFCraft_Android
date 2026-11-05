@@ -1,8 +1,8 @@
 # Prüfstand · 13. Oktober 2026
 
-## Blätterbereich: äußere zehn Prozent
+## Blätterbereich: äußere zwanzig Prozent
 
-Blättern kann links bei 0–10 % und rechts bei 90–100 % der Reader-Breite beginnen,
+Blättern kann links bei 0–20 % und rechts bei 80–100 % der Reader-Breite beginnen,
 einschließlich der Grenzen. Der Bereich hängt nicht mehr von der eingepassten
 Papierbreite ab und ist nicht mehr auf 48 dp begrenzt. Das gilt auch für große
 Ansichten sowie RTL und Doppelseiten. Die Mitte startet weiterhin keinen
@@ -10,7 +10,7 @@ Seitenwechsel; Zoom-Sperre und bestehende Umblätter-Animation bleiben unveränd
 
 Drei JVM-Tests prüfen beide Randzonen einschließlich Grenzen bei 320, 1080, 1440
 und 2560 Pixeln, die gesperrte Mitte und ungültige Koordinaten. Die vorhandenen
-Android-Tests ergänzen echte Faltungen an den 10%-Grenzen sowie ignorierte Gesten
+Android-Tests ergänzen echte Faltungen an den 20%-Grenzen sowie ignorierte Gesten
 knapp außerhalb; der RTL-Doppelseitentest beginnt ebenfalls an diesen Grenzen.
 
 Erfolgreich: Debug-/Test-APK, alle 53 JVM-Tests und Lint. Android-Tests wurden

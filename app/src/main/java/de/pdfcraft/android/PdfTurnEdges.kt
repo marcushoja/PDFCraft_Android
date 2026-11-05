@@ -5,8 +5,8 @@ internal object PdfTurnEdges {
     fun at(x: Float, viewportWidth: Int): Int {
         if (viewportWidth <= 0 || !x.isFinite() || x < 0f || x > viewportWidth.toFloat()) return 0
         return when {
-            x <= viewportWidth * .10f -> -1
-            x >= viewportWidth * .90f -> 1
+            x <= viewportWidth * .20f -> -1
+            x >= viewportWidth * .80f -> 1
             else -> 0
         }
     }
