@@ -5,6 +5,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
@@ -120,6 +121,10 @@ class PdfReaderView(context: Context) : View(context) {
     private var scrollYFloat = 0f
     private var pageWidths = FloatArray(0)
     private var pageHeights = FloatArray(0)
+    private var nativePageWidths = FloatArray(0)
+    private var nativePageHeights = FloatArray(0)
+    private var rotationDegrees = 0
+    val viewRotation: Int get() = rotationDegrees
     private var widths = FloatArray(0)
     private var heights = FloatArray(0)
     private var starts = FloatArray(1)
@@ -157,7 +162,7 @@ class PdfReaderView(context: Context) : View(context) {
     private var preparingAnnotations=false
     var onAnnotationsPrepared:(()->Unit)?=null
     private val failedRenders = HashSet<RenderKey>()
-    private data class RenderKey(val page: Int, val width: Int, val height: Int, val revision:Int=0)
+    private data class RenderKey(val page: Int, val width: Int, val height: Int, val revision:Int=0, val rotation: Int = 0)
     private val cache = object : LruCache<RenderKey, Bitmap>(32 * 1024 * 1024) {
         override fun sizeOf(key: RenderKey, value: Bitmap): Int = value.allocationByteCount
         // Do not recycle evicted images: a hardware Canvas may still reference them.
@@ -328,8 +333,9 @@ class PdfReaderView(context: Context) : View(context) {
         contentDescription = UiText.t(context,"PDF-Dokument")
     }
 
-    fun open(file: File, initialPage: Int = 0, initialOffset: Float = 0f, initialZoom: Float = 1f) {
+    fun open(file: File, initialPage: Int = 0, initialOffset: Float = 0f, initialZoom: Float = 1f, initialRotation: Int = 0) {
         close()
+        rotationDegrees = PdfViewRotation.normalize(initialRotation)
         sourceFile = file
         val token = generation.get()
         pendingPosition = Triple(initialPage, finite(initialOffset, 0f).coerceIn(0f, 1f),
@@ -378,8 +384,9 @@ class PdfReaderView(context: Context) : View(context) {
                 if(cachedSizes==null) runCatching { PdfPageSizeCache.write(file,context.cacheDir,pw,ph) }
                 uiHandler.post {
                     if (generation.get() == token) {
-                        pageWidths = pw
-                        pageHeights = ph
+                        nativePageWidths = pw
+                        nativePageHeights = ph
+                        updateRotatedSizes()
                         openingDocument = false
                         rebuildLayout()
                         restorePendingPosition()
@@ -428,6 +435,9 @@ class PdfReaderView(context: Context) : View(context) {
         openingDocument = false
         pageWidths = FloatArray(0)
         pageHeights = FloatArray(0)
+        nativePageWidths = FloatArray(0)
+        nativePageHeights = FloatArray(0)
+        rotationDegrees = 0
         widths = FloatArray(0)
         heights = FloatArray(0)
         localLefts = FloatArray(0)
@@ -515,6 +525,32 @@ class PdfReaderView(context: Context) : View(context) {
 
     fun resetZoom() = changeZoom(1f, width / 2f, height / 2f)
 
+    fun rotateViewClockwise() = setViewRotation(viewRotation + 90)
+
+    fun setViewRotation(degrees: Int) {
+        val next = PdfViewRotation.normalize(degrees)
+        if (viewRotation == next) return
+        val saved = position()
+        clearTextSelection()
+        stopAnimations()
+        rotationDegrees = next
+        gestureStartPage = saved.first
+        updateRotatedSizes()
+        cache.evictAll()
+        failedRenders.clear()
+        nightMeshSource = null; nightMeshImage = null
+        backMeshSource = null; backMeshImage = null
+        rebuildLayout()
+        setPosition(saved.first, saved.second)
+        invalidate()
+    }
+
+    private fun updateRotatedSizes() {
+        val swapped = PdfViewRotation.swapsAxes(viewRotation)
+        pageWidths = if (swapped) nativePageHeights else nativePageWidths
+        pageHeights = if (swapped) nativePageWidths else nativePageHeights
+    }
+
     val selectedTextRange: PdfTextSelection? get() = textSelection
 
     fun clearTextSelection() {
@@ -551,8 +587,10 @@ class PdfReaderView(context: Context) : View(context) {
 
     private fun selectionBoxOnScreen(box: RectF): RectF {
         val page = pageRect(textSelectionPage)
-        return RectF(page.left + box.left * page.width(), page.top + box.top * page.height(),
-            page.left + box.right * page.width(), page.top + box.bottom * page.height())
+        val a = PdfViewRotation.forward(box.left, box.top, viewRotation)
+        val b = PdfViewRotation.forward(box.right, box.bottom, viewRotation)
+        return RectF(page.left + min(a.x, b.x) * page.width(), page.top + min(a.y, b.y) * page.height(),
+            page.left + max(a.x, b.x) * page.width(), page.top + max(a.y, b.y) * page.height())
     }
 
     private fun selectTextAt(x: Float, y: Float) {
@@ -570,8 +608,9 @@ class PdfReaderView(context: Context) : View(context) {
         if (!rect.contains(x, y)) return
         clearTextSelection()
         requestedSelectionPage = page
-        val nx = (x - rect.left) / rect.width()
-        val ny = (y - rect.top) / rect.height()
+        val normalized = PdfViewRotation.inverse((x - rect.left) / rect.width(), (y - rect.top) / rect.height(), viewRotation)
+        val nx = normalized.x
+        val ny = normalized.y
         val request = selectionRequest
         val token = generation.get()
         fun apply(text: PdfPageText) {
@@ -742,8 +781,11 @@ class PdfReaderView(context: Context) : View(context) {
             if (text != null && page in 0 until pageCount) {
                 val rect = pageRect(page)
                 // Stay on this page, including when the finger moves beyond its edge.
-                val x = ((event.x - rect.left) / rect.width()).coerceIn(0f, 1f)
-                val y = ((event.y - handleRadius - rect.top) / rect.height()).coerceIn(0f, 1f)
+                val normalized = PdfViewRotation.inverse(
+                    ((event.x - rect.left) / rect.width()).coerceIn(0f, 1f),
+                    ((event.y - handleRadius - rect.top) / rect.height()).coerceIn(0f, 1f), viewRotation)
+                val x = normalized.x
+                val y = normalized.y
                 val index = text.closestGlyph(x, y) ?: text.glyphs.indices.minByOrNull { i ->
                     val box = text.glyphs[i].bounds
                     val dx = max(box.left - x, max(0f, x - box.right))
@@ -980,7 +1022,7 @@ class PdfReaderView(context: Context) : View(context) {
         val reduction = min(1.0, kotlin.math.sqrt(pixelBudget / (w.toDouble() * h)))
         w *= reduction.toFloat()
         h *= reduction.toFloat()
-        return RenderKey(page, max(1, w.toInt()), max(1, h.toInt()),renderRevision)
+        return RenderKey(page, max(1, w.toInt()), max(1, h.toInt()),renderRevision,viewRotation)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -1013,7 +1055,7 @@ class PdfReaderView(context: Context) : View(context) {
             if (rect.right < 0 || rect.left > width || rect.bottom < 0 || rect.top > height) continue
             val key = renderKey(page)
             val exact = cache.get(key)
-            val bitmap = exact ?: snapshots.entries.filter { it.key.page == page }
+            val bitmap = exact ?: snapshots.entries.filter { it.key.page == page && it.key.rotation == viewRotation }
                 .minByOrNull { abs(it.key.width - key.width) }?.value
             placeholderPaint.color = if (darkPages) Color.BLACK else Color.WHITE
             canvas.drawRect(rect, placeholderPaint)
@@ -1063,7 +1105,7 @@ class PdfReaderView(context: Context) : View(context) {
         val second = if (turning) turnTo else first
         fun bitmapFor(page: Int): Bitmap? {
             val key = renderKey(page)
-            return cache.get(key) ?: snapshots.entries.filter { it.key.page == page }
+            return cache.get(key) ?: snapshots.entries.filter { it.key.page == page && it.key.rotation == viewRotation }
                 .minByOrNull { abs(it.key.width - key.width) }?.value
         }
         fun drawSheet(page: Int) {
@@ -1164,7 +1206,7 @@ class PdfReaderView(context: Context) : View(context) {
                 if (token == generation.get()) {
                     val pdf = document.renderer
                     if (pdf != null) {
-                        val sharedKey="${document.renderIdentity}:${key.page}:${key.width}:${key.height}"
+                        val sharedKey="${document.renderIdentity}:${key.page}:${key.width}:${key.height}:${key.rotation}"
                         bitmap=if(document.sharePages) PdfRenderedPageMemoryCache.get(sharedKey) else null
                         if(bitmap!=null) sharedBitmap=true
                         else {
@@ -1172,7 +1214,11 @@ class PdfReaderView(context: Context) : View(context) {
                             val image = Bitmap.createBitmap(key.width, key.height, Bitmap.Config.ARGB_8888)
                             bitmap = image
                             image.eraseColor(Color.WHITE)
-                            page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            val matrix = if (key.rotation == 0) null else Matrix().apply {
+                                setValues(PdfViewRotation.renderMatrix(key.rotation, page.width.toFloat(),
+                                    page.height.toFloat(), key.width.toFloat(), key.height.toFloat()))
+                            }
+                            page.render(image, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         }
                         if(document.sharePages) bitmap?.let { PdfRenderedPageMemoryCache.put(sharedKey,it);sharedBitmap=true }
                         }
@@ -1187,6 +1233,11 @@ class PdfReaderView(context: Context) : View(context) {
                     if(!sharedBitmap) result?.recycle()
                 } else {
                     renderInFlight = false
+                    if (key.rotation != viewRotation) {
+                        if (!sharedBitmap) result?.recycle()
+                        invalidate()
+                        return@post
+                    }
                     if (!failed && result != null) {
                         // Keep one sharp version per page, not every previous zoom level.
                         cache.snapshot().keys.filter { it.page == key.page && it != key }.forEach { cache.remove(it) }

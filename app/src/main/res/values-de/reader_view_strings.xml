@@ -1,0 +1,5 @@
+<resources>
+    <string name="reader_rotate_view">Ansicht um 90° nach rechts drehen</string>
+    <string name="library_dark_mode">Dunklen Modus einschalten</string>
+    <string name="library_light_mode">Hellen Modus einschalten</string>
+</resources>

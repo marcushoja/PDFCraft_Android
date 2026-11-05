@@ -1,0 +1,5 @@
+<resources>
+    <string name="reader_rotate_view">Girar la vista 90° a la derecha</string>
+    <string name="library_dark_mode">Activar el modo oscuro</string>
+    <string name="library_light_mode">Activar el modo claro</string>
+</resources>

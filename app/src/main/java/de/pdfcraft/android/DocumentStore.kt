@@ -25,6 +25,7 @@ data class PdfDocument(
     val reflowOffset: Float = 0f,
     val lastView: String = "pdf",
     val contentHash: String = id,
+    val viewRotation: Int = 0,
 )
 
 /** Imports must run on a worker thread. No persistent URI permissions are needed. */
@@ -154,7 +155,7 @@ class DocumentStore(context: Context) {
         }
     }
 
-    fun updateProgress(id: String, page: Int, offset: Float, zoom: Float, pageCount: Int) {
+    fun updateProgress(id: String, page: Int, offset: Float, zoom: Float, pageCount: Int, viewRotation: Int? = null) {
         val progress = ReadingProgress.sanitize(page, offset, zoom, pageCount)
         update(id) { document ->
             document.copy(
@@ -163,6 +164,7 @@ class DocumentStore(context: Context) {
                 zoom = progress.zoom,
                 pageCount = progress.pageCount,
                 lastView = "pdf",
+                viewRotation = viewRotation?.let { PdfViewRotation.normalize(it) } ?: document.viewRotation,
                 bookmarks = document.bookmarks.filter {
                     progress.pageCount == 0 || it < progress.pageCount
                 },
@@ -217,11 +219,12 @@ class DocumentStore(context: Context) {
         update(id) { it.copy(name = cleaned) }
     }
 
-    fun updateTextProgress(id: String, page: Int, offset: Float, pageCount: Int) {
+    fun updateTextProgress(id: String, page: Int, offset: Float, pageCount: Int, viewRotation: Int? = null) {
         val normalized = ReadingProgress.sanitize(page, offset, 1f, pageCount)
         update(id) { doc -> doc.copy(page = normalized.page, pageCount = normalized.pageCount,
             offset = if (doc.page == normalized.page) doc.offset else 0f,
-            reflowOffset = normalized.offset, lastView = "reflow") }
+            reflowOffset = normalized.offset, lastView = "reflow",
+            viewRotation = viewRotation?.let { PdfViewRotation.normalize(it) } ?: doc.viewRotation) }
     }
 
     fun toggleBookmark(id: String, page: Int) {
@@ -306,6 +309,7 @@ class DocumentStore(context: Context) {
                         json.optDouble("reflowOffset", 0.0).toFloat().let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0f },
                         if (json.optString("lastView") == "reflow") "reflow" else "pdf",
                         json.optString("contentHash", id).takeIf { ID_PATTERN.matches(it) } ?: id,
+                        PdfViewRotation.normalize(json.optInt("viewRotation", 0)),
                     ),
                 )
             } catch (error: Exception) {
@@ -332,6 +336,7 @@ class DocumentStore(context: Context) {
                 put("reflowOffset", document.reflowOffset.toDouble())
                 put("lastView", document.lastView)
                 put("contentHash", document.contentHash)
+                put("viewRotation", PdfViewRotation.normalize(document.viewRotation))
             })
         }
         if (!preferences.edit().putString(DOCUMENTS, array.toString()).commit()) {

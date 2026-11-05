@@ -16,7 +16,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 
 On opening the app, PDFCraft checks GitHub Releases in the background when Internet access is available, at most once every 24 hours after a successful check. If offline or a check fails, it silently tries again the next time the app is opened. A small notice in the library offers **Download**, which opens the official version-specific APK URL in your browser. Android still asks you to confirm installation. Closing a notice hides that release permanently, but not future releases. There are no update dialogs over an open PDF and no background APK downloads.
 
-The library hamburger menu also offers **Check for updates** and **Settings**. An explicit update check bypasses the daily interval and also offers a previously dismissed update, with feedback if the app is current, offline, or the check fails.
+The library hamburger menu offers only **Check for updates** and **About PDFCraft**. The sun/moon button immediately to its left switches the app theme. Reading settings remain in the opened PDF's menu. An explicit update check bypasses the daily interval and also offers a previously dismissed update, with feedback if the app is current, offline, or the check fails.
 
 ## Features
 
@@ -25,7 +25,8 @@ The library hamburger menu also offers **Check for updates** and **Settings**. A
 - Private local library with cover thumbnails, reading progress and resume actions.
 - Icon buttons switch between grid and compact list views and sort the library by name or date added, ascending or descending. List rows use small covers with a separate options button. View and sorting preferences are remembered.
 - Import PDFs through Android's file picker, **Open with** and **Share**. Originals remain unchanged.
-- Save each document's page, relative vertical position and zoom. SHA-256 deduplication preserves progress when the same file is imported again.
+- Save each document's page, relative vertical position, zoom and viewing rotation. SHA-256 deduplication preserves progress when the same file is imported again.
+- The reader toolbar has a **Rotate view 90° clockwise** button instead of the bookmark icon. Each click rotates every page's displayed orientation, cycling back after four clicks; the angle is restored per document on reopening. This changes neither the PDF bytes nor shared/printed output. Permanent page rotation remains a separate PDF tool. Bookmarks remain available in the reader menu.
 - Five reading layouts: continuous vertical scrolling, single pages, side-by-side spreads, books with a separate cover, and gapless comic/webtoon scrolling. Independent right-to-left navigation for manga; text and page images are not mirrored. Mixed page sizes, unpaired final pages and saved positions are preserved when changing layouts or viewport size.
 - Finger-controlled page curling with a nonlinear cylindrical bitmap mesh, visible paper backside, faint mirrored ink, crease and shadows. Release commits the turn or rolls it back. The mesh uses the hardware-accelerated Canvas path when available, not a dedicated OpenGL renderer. Curl animation currently applies to unzoomed single pages; spreads change without curl.
 - Faster page overview with a bounded viewport, cancelable thumbnail requests, reused native PDF renderers, RAM/disk caches and no full annotation inspection per thumbnail. It opens at the current reading position.
@@ -58,6 +59,7 @@ The library hamburger menu also offers **Check for updates** and **Settings**. A
 
 - Rotate, extract/reorder, delete, merge and split pages; add/read notes, mark text, fill standard forms, edit metadata and apply password protection.
 - **PDF tools** is the first item in the reader menu. Rotation offers **Entire PDF** or selected pages before choosing the angle.
+- The reader menu omits duplicate **Open PDF**, **Fullscreen** and **About** actions. Fullscreen remains in the toolbar, and dark mode is available in both the reader menu and the library header.
 - Edits update the existing private library copy rather than creating another library entry each time. Names, reading progress and bookmarks are retained; page selection/reordering remaps bookmarks and the reading page. A staged, synced file replaces the local PDF atomically, with rollback if metadata saving fails. Imported originals outside the app are never modified. Splitting and merging still produce separate documents by design.
 - Icon-grid tool menus. Markup offers six colors and highlight, underline and strikeout, with preview and remembered choices. Reflow selection includes **Mark text**. Query-based marking matches text on the current page; scans require OCR.
 - Direct selection on rendered pages: long press, move selection handles, copy, select all or mark. Markup uses only the selected glyphs, including multiline selections, instead of marking every identical word. Supports crop offsets, 0°/90°/180°/270° page rotations, zoom and scrolling. Selection remains on one page; individually rotated/skewed or vertical glyphs are skipped.
@@ -94,6 +96,7 @@ Kotlin, native Android views and AndroidX Activity. Android's `PdfRenderer` rend
 
 - `MainActivity.kt`: library, Android file selection and reader integration.
 - `PdfReaderView.kt`: rendering, layouts, gestures and reading position.
+- `PdfViewRotation.kt`: read-only viewing rotation, render transforms and inverse text hit-testing.
 - `DocumentStore.kt`: private imports, deduplication and metadata.
 - `ThumbnailLoader.kt`: background thumbnails with RAM/disk caching.
 - `ReadingProgress.kt`: independently tested reading-position normalization.

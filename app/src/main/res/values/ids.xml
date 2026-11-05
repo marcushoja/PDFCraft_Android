@@ -1,4 +1,7 @@
 <resources>
+    <item name="back_to_library" type="id" />
+    <item name="library_theme" type="id" />
+    <item name="reader_rotate_view" type="id" />
     <item name="library_menu" type="id" />
     <item name="update_notice" type="id" />
     <item name="update_download" type="id" />

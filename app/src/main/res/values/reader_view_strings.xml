@@ -1,0 +1,5 @@
+<resources>
+    <string name="reader_rotate_view">Rotate view 90° clockwise</string>
+    <string name="library_dark_mode">Switch to dark mode</string>
+    <string name="library_light_mode">Switch to light mode</string>
+</resources>

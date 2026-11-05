@@ -8,10 +8,18 @@ class ReaderMenusTest {
         for (reflow in listOf(false, true)) {
             val actions = ReaderMenus.pdf(reflow)
             assertEquals("tools", actions.first().id)
-            assertEquals(21, actions.size)
+            assertEquals(18, actions.size)
             assertEquals(actions.size, actions.map { it.id }.toSet().size)
             assertEquals(if (reflow) "PDF-Ansicht" else "Textmodus / Reflow", actions.single { it.id == "text" }.label)
             assertTrue(actions.any { it.id == "settings" })
+            assertTrue(actions.any { it.id == "bookmark" })
+            assertTrue(actions.any { it.id == "dark" })
+            assertFalse(actions.any { it.id in listOf("open", "full", "about") })
         }
+    }
+
+    @Test fun libraryOnlyOffersUpdatesAndAbout() {
+        val actions = ReaderMenus.library("Auf Updates prüfen")
+        assertEquals(listOf("updates", "about"), actions.map { it.id })
     }
 }

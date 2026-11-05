@@ -17,14 +17,18 @@ def main():
     output = Path("/tmp/opencode/pdfcraft-zen")
     output.mkdir(parents=True,exist_ok=True)
     package="de.pdfcraft.android"
+    def open_reader():
+        adb("shell","am","start","-W","-n",f"{package}/.MainActivity","-a","android.intent.action.VIEW",
+            "-d",f"file:///data/user/0/{package}/cache/reader-integration.pdf","-t","application/pdf")
+        wait_hierarchy(lambda nodes: any(n.get("resource-id")==f"{package}:id/menu_button" for n in nodes))
     adb("shell","am","force-stop",package)
-    adb("shell","am","start","-W","-n",f"{package}/.MainActivity","-a","android.intent.action.MAIN")
-    wait_hierarchy(lambda nodes: any("Marcus Hoja" in n.get("text","") for n in nodes))
-    tap_id(f"{package}:id/library_menu")
+    open_reader()
+    tap_id(f"{package}:id/menu_button")
     tap(description="Einstellungen")
     check("Dunkle Oberfläche",False)
     check("PDF-Farben für die Nacht invertieren",False)
     tap(text="Übernehmen")
+    tap_id(f"{package}:id/back_to_library")
     screenshot(output,"library-de.png")
     current="de"
     labels={"de":("Einstellungen","Übernehmen","PDF öffnen","Bibliothek"),
@@ -32,11 +36,13 @@ def main():
             "fr":("Paramètres","Appliquer","Ouvrir un PDF","Bibliothèque"),
             "es":("Ajustes","Aplicar","Abrir PDF","Biblioteca")}
     for tag,autonym in [("en","English"),("fr","Français"),("es","Español"),("de","Deutsch")]:
-        tap_id(f"{package}:id/library_menu")
+        open_reader()
+        tap_id(f"{package}:id/menu_button")
         tap(description=labels[current][0])
         tap_id(f"{package}:id/language_spinner")
         tap(text=autonym)
         tap(text=labels[current][1])
+        tap_id(f"{package}:id/back_to_library")
         nodes=list(wait_hierarchy(lambda nodes: any(n.get("text")==labels[tag][2] for n in nodes)).iter("node"))
         assert any(n.get("text")==labels[tag][3] for n in nodes), (tag,"Library tab not translated")
         assert any("Marcus Hoja" in n.get("text","") for n in nodes), (tag,"Creator credit missing")

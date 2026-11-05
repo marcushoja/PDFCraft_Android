@@ -19,6 +19,7 @@ class LibraryView(
     private val onSettings: () -> Unit,
     private val onScan: (() -> Unit)?=null,
     private val onSupport:(() -> Unit)?=null,
+    private val onToggleDark: (() -> Unit)? = null,
 ) : LinearLayout(context) {
     private val ink = ZenColors.of(dark).ink
     private val muted = ZenColors.of(dark).muted
@@ -99,6 +100,13 @@ class LibraryView(
         orientation = VERTICAL
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(12),dp(12),dp(6)) }
         header.addView(label("PDFCraft", 24f).apply { setTypeface(typeface, Typeface.BOLD) }, LayoutParams(0,-2,1f))
+        onToggleDark?.let { toggle ->
+            header.addView(iconAction(if (dark) "sun" else "moon",
+                if (dark) R.string.library_light_mode else R.string.library_dark_mode, toggle).apply {
+                id = R.id.library_theme
+                isSelected = dark
+            })
+        }
         header.addView(action("", context.getString(R.string.library_menu)) { onSettings() }.apply {
             id = R.id.library_menu
             setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"menu",accent),null,null,null)

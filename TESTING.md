@@ -1,5 +1,38 @@
 # Prüfstand · 13. Oktober 2026
 
+## Gespeicherte Ansichtsdrehung und vereinfachte Menüs · 5. November 2026
+
+Die Bibliothek bietet im Hamburger nur Updates und „Über PDFCraft“. Links daneben
+schaltet eine Sonne-/Mond-Schaltfläche dieselbe globale Oberfläche um wie „Dunkler
+Modus“ im Lesemenü. Die Ansichtseinstellungen bleiben ausschließlich im Lesemenü.
+Dort entfallen „PDF öffnen“, „Vollbild“ und „Über PDFCraft“; der Vollbildknopf oben
+bleibt erhalten. „Seite merken“ bleibt im Menü, nicht mehr als Toolbar-Symbol.
+
+Das neue Toolbar-Symbol dreht die Darstellung aller Seiten pro Klick um 90°.
+`viewRotation` wird in denselben Dokumentmetadaten wie Leseseite, Offset und Zoom
+gespeichert (alte Einträge: 0°). Der Dateihash und die PDF-Bytes bleiben unverändert;
+Teilen und Drucken verwenden weiterhin die tatsächliche Datei. Die bleibende
+PDF-Drehung im Werkzeugmenü ist davon unabhängig. Im Textmodus wechselt der
+Drehknopf zunächst zurück zur PDF-Ansicht.
+
+Native Seitengrößen bleiben ungeändert im Größen-Cache; das Layout nutzt bei 90°/
+270° vertauschte Maße. Render- und RAM-Cache-Schlüssel enthalten den Ansichtswinkel;
+spät eintreffende Bilder einer alten Drehung werden nicht angezeigt. Text-Hit-Tests
+verwenden die inverse Drehung, Auswahlrechtecke die Vorwärtsdrehung. PDF-Quads für
+Markierungen bleiben in Originalkoordinaten. Umblätter-Gesten bleiben am Rand und
+Zoom bleibt auf die aktuelle Seite begrenzt.
+
+JVM-Tests ergänzen Drehzyklus, Normalisierung, Koordinaten-Rücktransformation,
+Native-Render-Matrizen ohne Beschnitt/Spiegelung und die beiden Menü-Inhalte.
+Android-Tests ergänzen farbige Seitenbilder und Textauswahl nach Drehung, den
+Toolbar-Klick mit Speicherung/Wiederöffnung pro Dokument sowie den Theme-Schalter
+vor dem Hamburger und die neuen Beschreibungen in allen vier Sprachen. Die Reader-
+und Sprach-Smoke-Skripte wurden an die neuen Zugänge angepasst und syntaxgeprüft.
+
+Lokal erfolgreich: Debug- und Test-APK gebaut, alle 50 JVM-Tests und Android Lint.
+Android-Integrationstests wurden kompiliert, aber nicht auf einem Gerät ausgeführt:
+ADB antwortet weiterhin nicht. Die visuelle Prüfung bleibt daher offen.
+
 ## Menüs, manuelle Updates und lokale Bearbeitung · 5. November 2026
 
 Das Bibliotheksmenü bietet „Auf Updates prüfen“ und die Einstellungen. Die manuelle

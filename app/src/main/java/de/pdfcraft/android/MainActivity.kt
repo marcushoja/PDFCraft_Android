@@ -63,7 +63,6 @@ class MainActivity : ComponentActivity() {
     private var topBar: View? = null
     private var bottomBar: View? = null
     private var pageLabel: TextView? = null
-    private var bookmarkButton: ImageView? = null
     private var loadingView: PdfLoadingView? = null
     private var outlinePanel: OutlinePanel? = null
     private var searchProgress: AlertDialog? = null
@@ -223,7 +222,7 @@ class MainActivity : ComponentActivity() {
         newRoot()
         root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { libraryMenu() }, {
             scanner.launch(Intent(this,ScanActivity::class.java))
-        }, { showSupport() }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
+        }, { showSupport() }, onToggleDark = { toggleDark() }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
         refreshUpdateNotice()
     }
 
@@ -235,10 +234,38 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun libraryMenu() {
-        ReaderActionSheet(this, dark, listOf(
-            ReaderAction("updates", getString(R.string.update_check), "reload"),
-            ReaderAction("settings", getString(R.string.ui_settings_short), "settings")
-        )) { action -> if (action == "updates") checkUpdatesManually() else settings() }.show()
+        ReaderActionSheet(this, dark, ReaderMenus.library(getString(R.string.update_check))) { action ->
+            if (action == "updates") checkUpdatesManually() else showAbout()
+        }.show()
+    }
+
+    private fun showAbout() {
+        LocalizedDialogBuilder(this).setTitle("Über PDFCraft")
+            .setMessage("PDFCraft Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun toggleDark() {
+        persistPosition()
+        dark = !dark
+        prefs.edit().putBoolean("dark", dark).apply()
+        val id = documentId
+        if (id == null) showLibrary() else openDocument(id)
+    }
+
+    private fun rotateReaderView() {
+        val view = reader ?: return
+        if (reflow) setReflow(false)
+        view.rotateViewClockwise()
+        persistPosition()
+    }
+
+    private fun toggleBookmark() {
+        val id = documentId ?: return
+        val view = reader ?: return
+        store.toggleBookmark(id, view.currentPage)
+        lastChromePage = -1
+        updateReaderChrome()
     }
 
     private fun checkUpdatesManually() {
@@ -317,10 +344,10 @@ class MainActivity : ComponentActivity() {
         positionPage = doc.page; positionOffset = doc.offset; positionZoom = doc.zoom
         newRoot()
         val top = row().apply { setPadding(dp(4), dp(2), dp(4), dp(2)); setBackgroundColor(toolbarColor) }
-        top.addView(iconButton("back", "Zur Bibliothek") { showLibrary() })
+        top.addView(iconButton("back", "Zur Bibliothek") { showLibrary() }.apply { this.id = R.id.back_to_library })
         top.addView(text(doc.name, 16f, ink, true, translate = false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
-        bookmarkButton = iconButton("bookmark_outline", "Lesezeichen setzen oder entfernen") { reader?.let { store.toggleBookmark(id, it.currentPage); lastChromePage = -1; updateReaderChrome() } }.apply { this.id = R.id.bookmark_button }
-        top.addView(bookmarkButton)
+        top.addView(iconButton("rotate", getString(R.string.reader_rotate_view)) { rotateReaderView() }
+            .apply { this.id = R.id.reader_rotate_view })
         top.addView(iconButton("fullscreen", "Vollbild") { toggleChrome() })
         top.addView(iconButton("menu", "Leseoptionen") { readerMenu() }.apply { this.id = R.id.menu_button })
         topBar = top; root.addView(top)
@@ -424,7 +451,7 @@ class MainActivity : ComponentActivity() {
         }
         view.onTap = { toggleChrome() }
         view.onError = { message -> if (documentId == doc.id) { loadingView?.visibility = View.GONE; handleOpenError(doc, message) } }
-        view.open(store.file(doc), doc.page, doc.offset, doc.zoom)
+        view.open(store.file(doc), doc.page, doc.offset, doc.zoom, doc.viewRotation)
         applyReaderSettings()
     }
 
@@ -438,8 +465,8 @@ class MainActivity : ComponentActivity() {
         val view = reader ?: return
         if (view.pageCount <= 0) return
         if (reflow && reflowLoading) return
-        if (reflow) store.updateTextProgress(id, view.currentPage, reflowOffset, view.pageCount)
-        else store.updateProgress(id, positionPage, positionOffset, positionZoom, view.pageCount)
+        if (reflow) store.updateTextProgress(id, view.currentPage, reflowOffset, view.pageCount, view.viewRotation)
+        else store.updateProgress(id, positionPage, positionOffset, positionZoom, view.pageCount, view.viewRotation)
     }
 
     private fun updateReaderChrome() {
@@ -450,9 +477,6 @@ class MainActivity : ComponentActivity() {
         val visible=if(reflow) listOf(view.currentPage) else view.visiblePages
         pageLabel?.text = if(visible.size>1) "${visible.min()+1}–${visible.max()+1} / ${view.pageCount}" else "${view.currentPage + 1} / ${view.pageCount}"
         if (pageSeek?.isPressed != true) pageSeek?.progress = view.currentPage
-        val marked = store.get(documentId ?: "")?.bookmarks?.contains(view.currentPage) == true
-        bookmarkButton?.isSelected = marked
-        bookmarkButton?.setImageDrawable(MaterialSymbols.drawable(this, if (marked) "bookmark" else "bookmark_outline", accent))
     }
 
     private fun toggleChrome() {
@@ -488,15 +512,14 @@ class MainActivity : ComponentActivity() {
     private fun readerMenu() {
         ReaderActionSheet(this, dark, ReaderMenus.pdf(reflow)) { action ->
             when (action) {
-                "open" -> pickPdf(); "dark" -> { persistPosition(); dark = !dark; prefs.edit().putBoolean("dark",dark).apply(); documentId?.let { openDocument(it) } }
-                "search" -> searchDialog(); "jump" -> jumpDialog(); "bookmark" -> bookmarkButton?.performClick()
-                "full" -> toggleChrome(); "text" -> setReflow(!reflow); "pages" -> pagesDialog(false)
+                "dark" -> toggleDark()
+                "search" -> searchDialog(); "jump" -> jumpDialog(); "bookmark" -> toggleBookmark()
+                "text" -> setReflow(!reflow); "pages" -> pagesDialog(false)
                 "share" -> currentDocument()?.let { share(store.file(it),displayName=it.name) }; "print" -> printDocument()
                 "signature" -> currentDocument()?.let { doc -> if (unlocked != null && unlocked?.owner != true) error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.") else signatureDialog(viewingFile(doc),doc.name.removeSuffix(".pdf"),doc) }
                 "tools" -> toolsDialog(); "reload" -> { persistPosition(); documentId?.let { openDocument(it) } }
                 "info" -> propertiesDialog(); "screenshot" -> screenshotDocument(); "zoom" -> reader?.resetZoom()
                 "outline" -> outlineDialog(); "bookmarks" -> pagesDialog(true); "notes" -> notesDialog(); "settings" -> settings()
-                "about" -> LocalizedDialogBuilder(this).setTitle("Über PDFCraft").setMessage("PDFCraft Android\nVon Marcus Hoja\nEin privater PDF-Reader. Offline und ohne Konto.").setPositiveButton("OK",null).show()
             }
         }.show()
     }
@@ -692,7 +715,7 @@ class MainActivity : ComponentActivity() {
                         unlocked = value; dialog.dismiss(); input.text.clear()
                         reader?.textSelectionAllowed = value.canExtract
                         loadingView?.visibility = View.VISIBLE
-                        reader?.open(value.file, doc.page, doc.offset, doc.zoom)
+                        reader?.open(value.file, doc.page, doc.offset, doc.zoom, doc.viewRotation)
                     }, { input.error = l(it.message ?: "Passwort nicht akzeptiert") })
                 }
             }

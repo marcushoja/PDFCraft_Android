@@ -114,8 +114,10 @@ def main():
     tap(description="Seitenzahl, zu Seite springen")
     adb("shell", "input", "text", "5")
     tap(text="Öffnen")
-    if not any(n.get("resource-id") == "de.pdfcraft.android:id/bookmark_button" and n.get("selected") == "true" for n in hierarchy().iter("node")):
-        tap(description="Lesezeichen setzen oder entfernen")
+    current = max(records(), key=lambda d: d["lastOpened"])
+    if 4 not in current["bookmarks"]:
+        tap(description="Leseoptionen")
+        tap(description="Seite merken")
     time.sleep(0.6)  # Allow debounced progress persistence.
     doc = max((d for d in records() if d["name"] == "reader-integration.pdf"), key=lambda d: d["lastOpened"])
     assert doc["page"] == 4, doc
@@ -136,8 +138,9 @@ def main():
     tap(description="reader-integration.pdf, weiterlesen")
     nodes = list(hierarchy().iter("node"))
     assert any(n.get("text") == "5 / 8" for n in nodes), "Reading position not restored"
-    assert any(n.get("resource-id") == "de.pdfcraft.android:id/bookmark_button" and n.get("selected") == "true" for n in nodes), "Bookmark not restored"
+    assert any(n.get("resource-id") == "de.pdfcraft.android:id/reader_rotate_view" for n in nodes), "View rotation action missing"
     resumed = next(d for d in records() if d["id"] == doc["id"])
+    assert 4 in resumed["bookmarks"], "Bookmark not restored"
     assert abs(resumed["offset"] - doc["offset"]) < 0.02, (doc, resumed)
     assert abs(resumed["zoom"] - doc["zoom"]) < 0.01, (doc, resumed)
     tap(description="Seiten")
