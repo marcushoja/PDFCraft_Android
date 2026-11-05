@@ -1,4 +1,7 @@
 <resources>
+    <item name="update_notice" type="id" />
+    <item name="update_download" type="id" />
+    <item name="update_dismiss" type="id" />
     <item name="support_button" type="id" />
     <item name="scan_intro" type="id" />
     <item name="scan_grayscale" type="id" />

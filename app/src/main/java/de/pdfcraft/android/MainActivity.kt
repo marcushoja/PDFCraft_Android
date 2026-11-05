@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("reader_settings", MODE_PRIVATE) }
     private lateinit var root: LinearLayout
+    private var libraryView: LibraryView? = null
     private var reader: PdfReaderView? = null
     private var selectionMode:android.view.ActionMode?=null
     private var directSelection:Pair<Int,PdfTextSelection>?=null
@@ -120,6 +121,31 @@ class MainActivity : ComponentActivity() {
         } else handleIntent(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        refreshUpdateNotice()
+        val activity = java.lang.ref.WeakReference(this)
+        AppUpdates.check(applicationContext) {
+            activity.get()?.takeIf { !it.isDestroyed && !it.isFinishing }?.refreshUpdateNotice()
+        }
+    }
+
+    private fun refreshUpdateNotice() {
+        val library = libraryView ?: return
+        val release = AppUpdates.available(this)
+        library.showUpdate(release, {
+            if (release != null) {
+                try { startActivity(AppUpdates.downloadIntent(release)) }
+                catch (_: android.content.ActivityNotFoundException) {
+                    Toast.makeText(this, R.string.update_no_browser, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }, {
+            if (release != null) AppUpdates.dismiss(this, release)
+            refreshUpdateNotice()
+        })
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -164,6 +190,7 @@ class MainActivity : ComponentActivity() {
     }
     private fun gap(size: Int) = View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(size)) }
     private fun newRoot() {
+        libraryView = null
         setTheme(if (dark) R.style.AppThemeDark else R.style.AppTheme)
         WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         root = column().apply { setBackgroundColor(paper) }
@@ -194,7 +221,8 @@ class MainActivity : ComponentActivity() {
         newRoot()
         root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { settings() }, {
             scanner.launch(Intent(this,ScanActivity::class.java))
-        }, { showSupport() }), LinearLayout.LayoutParams(-1, -1))
+        }, { showSupport() }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
+        refreshUpdateNotice()
     }
 
     private fun showSupport() {

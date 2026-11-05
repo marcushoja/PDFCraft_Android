@@ -1,5 +1,33 @@
 # Prüfstand · 13. Oktober 2026
 
+## Automatische Update-Prüfung · 5. November 2026
+
+Beim Öffnen prüft ein separater Hintergrund-Executor das neueste öffentliche
+GitHub-Release, sobald ein validierter Internetzugang besteht. Nur eine erfolgreiche
+Prüfung setzt die 24-Stunden-Pause; offline, Zeitüberschreitungen, API-Fehler und
+unvollständige Releases erlauben einen neuen Versuch beim nächsten Öffnen. Ein
+bekanntes Update bleibt lokal zwischengespeichert. Geschlossene Versionshinweise
+bleiben auch nach einem Neustart verborgen; neuere Releases werden wieder angezeigt.
+
+Der Hinweis erscheint ausschließlich innerhalb der Bibliothek, nicht über einer
+PDF. „Herunterladen“ öffnet die offizielle, versionsgebundene GitHub-APK-Adresse im
+Browser. Es gibt weder einen APK-Download im Hintergrund noch einen eigenen
+Installationsdialog oder eine Berechtigung zur Paketinstallation. Die App benötigt
+jetzt Internet-/Netzwerkstatus-Berechtigungen für diese Abfrage; Dokumente bleiben
+lokal und werden nicht mitgesendet.
+
+Neun JVM-Tests prüfen Zeitabstand und Grenzzeit, Offline-Wiederholung, Fehler und
+zwischengespeicherte Ergebnisse, Versionsvergleich, dauerhaftes Schließen,
+fehlende Releases, zurückgestellte Geräteuhren und erlaubte Downloadadressen.
+Vier Android-Tests prüfen Release-JSON einschließlich ungültiger/unvollständiger
+Antworten, Browser-Intent ohne Dokumentdaten, die beiden Hinweisaktionen in beiden
+Designs und Übersetzungen in allen vier Sprachen. Der echte GitHub-Endpunkt wurde
+lesend geprüft: `build-28` mit passender `PDFCraft.apk` und numerischer Build-ID.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 38 JVM-Tests und Android Lint.
+Die Android-Tests wurden kompiliert, aber nicht ausgeführt: ADB antwortet hier
+weiterhin nicht auf die Geräteabfrage. Ein visueller Gerätetest steht noch aus.
+
 ## Randgesten und Zoom · 4. November 2026
 
 Umblättern startet nur im schmalen linken/rechten Randbereich. Ziehen an der

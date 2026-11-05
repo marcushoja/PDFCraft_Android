@@ -14,6 +14,8 @@ Get the latest installable APK from [GitHub Releases](https://github.com/marcush
 
 Every push to `main` automatically builds and checks the app and publishes a release with its SHA-256 checksum. These are **developer-signed preview builds**, not Play Store releases. GitHub builds use the fixed project signing key from the `PDFCRAFT_SIGNING_BUNDLE` secret; its certificate is checked before publication. Releases from build 11 onward support normal updates without uninstalling. Older releases may require a one-time reinstall: save important documents first. Local builds without the release signing environment use a different debug key and cannot update GitHub builds directly. See [SIGNING.md](SIGNING.md).
 
+On opening the app, PDFCraft checks GitHub Releases in the background when Internet access is available, at most once every 24 hours after a successful check. If offline or a check fails, it silently tries again the next time the app is opened. A small notice in the library offers **Download**, which opens the official version-specific APK URL in your browser. Android still asks you to confirm installation. Closing a notice hides that release permanently, but not future releases. There are no update dialogs over an open PDF and no background APK downloads.
+
 ## Features
 
 ### Library and reading
@@ -61,7 +63,7 @@ Every push to `main` automatically builds and checks the app and publishes a rel
 
 ### Privacy and limitations
 
-- Original documents are never modified. The app has no Internet permission, accounts, advertising or telemetry. Cloud file providers may need their own network access during import. The optional support link opens externally in a browser; no PDFs are attached or shared with it.
+- Original documents are never modified. There are no accounts, advertising or telemetry. Internet and network-state permissions are used for the startup GitHub release check; GitHub receives a normal HTTPS request (including your IP address), but no documents, filenames, reading progress or device identifiers. PDFs are processed locally. Cloud file providers may need their own network access during import. Downloads and the optional support link open externally in a browser; no PDFs are attached or shared with them.
 - **Not full PdfCraft/Acrobat parity:** OCR, reliable editing of existing PDF text, Office conversion, safe redaction, cryptographic signatures, layers/attachments, PDF/A/preflight tools, XFA, full comment threads and other advanced features remain unimplemented. Night rendering also inverts images.
 - Tools create new copies rather than incremental updates, which can invalidate existing digital signatures. Edited copies are saved without the original encryption unless password protection is explicitly applied.
 - Extraction and page deletion do not repair every outline or form reference to removed pages and are **not safe redaction**. Newly protected copies allow reading/printing but restrict text extraction/editing. Merging uses imported library documents; splitting creates private library copies.
@@ -96,6 +98,7 @@ Kotlin, native Android views and AndroidX Activity. Android's `PdfRenderer` rend
 - `PdfTools.kt`, `PdfMarkup.kt`: page organization, forms, notes, markup and visible signatures.
 - `ScanActivity.kt`, `ScanCropView.kt`, `ScanPageStrip.kt`, `ScanProcessing.kt`: scanner workflow, corner editing, page strip, perspective correction and image-PDF export.
 - `SupportDialog.kt`: optional support message and external browser link.
+- `UpdateCheck.kt`, `AppUpdates.kt`, `UpdateNoticeView.kt`: daily release-check policy, GitHub access and inline library update notice.
 
 Bookmarks are app metadata, not changes within the PDF. Documents and reading progress are excluded from Android backup; uninstalling deletes the private library.
 

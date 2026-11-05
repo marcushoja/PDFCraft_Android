@@ -33,6 +33,7 @@ class LibraryView(
     private var listMode = preferences.getBoolean("list", false)
     private var sortOrder = preferences.getInt("sort", 0).coerceIn(0, 3)
     private lateinit var grid: GridView
+    private val updateContainer = FrameLayout(context)
     private val tabButtons = mutableListOf<TextView>()
     private val empty = label("Öffne deine erste PDF.\nDeine Lesestelle bleibt gespeichert.", 17f).apply { gravity = Gravity.CENTER; setPadding(dp(24), dp(24), dp(24), dp(24)); setTextColor(muted) }
     private val adapter = object : BaseAdapter() {
@@ -108,6 +109,7 @@ class LibraryView(
         }
         header.addView(action("", "Einstellungen") { onSettings() }.apply { setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"menu",accent),null,null,null) })
         addView(header)
+        addView(updateContainer, LayoutParams(-1, -2).apply { setMargins(dp(16), 0, dp(16), 0) })
         val search = EditText(context).apply {
             hint = UiText.t(context,"Bibliothek durchsuchen"); textSize = 16f; setTextColor(ink); setHintTextColor(muted); setSingleLine()
             background = rounded(tint, 28); setPadding(dp(22),dp(8),dp(16),dp(8)); contentDescription = UiText.t(context,"Bibliothek durchsuchen")
@@ -183,6 +185,12 @@ class LibraryView(
         bottom.addView(action("PDF öffnen", "PDF öffnen") { onImport() }.apply { background = rounded(tint, 18); compoundDrawablePadding = dp(8); setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"folder",accent),null,null,null) })
         addView(bottom)
         refresh()
+    }
+
+    internal fun showUpdate(release: AppRelease?, onDownload: () -> Unit, onDismiss: () -> Unit) {
+        updateContainer.removeAllViews()
+        if (release != null) updateContainer.addView(UpdateNoticeView(context, dark, release, onDownload, onDismiss),
+            FrameLayout.LayoutParams(-1, -2))
     }
 
     private fun refresh() {
