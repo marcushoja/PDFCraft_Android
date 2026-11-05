@@ -70,6 +70,14 @@ class PdfTools(context: Context) {
     }
 
     fun rotate(source: File, pages: List<Int>, degrees: Int): File = edit(source) { document ->
+        rotatePages(document, pages, degrees)
+    }
+
+    fun rotateAll(source: File, degrees: Int): File = edit(source) { document ->
+        rotatePages(document, (0 until document.numberOfPages).toList(), degrees)
+    }
+
+    private fun rotatePages(document: PDDocument, pages: List<Int>, degrees: Int) {
         checkPages(document, pages)
         if (degrees % 90 != 0) throw IOException("Die Drehung muss ein Vielfaches von 90 Grad sein.")
         requirePermission(document.currentAccessPermission.canModify(), "Das Drehen")

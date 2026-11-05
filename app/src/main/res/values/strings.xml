@@ -15,14 +15,14 @@
     <string name="ui_selection_copy">Copy</string>
     <string name="ui_selection_all">Select all</string>
     <string name="ui_selection_copied">Text copied</string>
-    <string name="ui_tools_copy_hint">Changes are saved in a new PDF copy.</string>
+    <string name="ui_tools_copy_hint">Edits update the local library copy; the original stays unchanged. Digital signatures may become invalid and existing encryption may be removed.</string>
     <string name="ui_markup_matches">Page %1$s · All matching occurrences on this page. Text must fit on a single PDF line; scans require OCR.</string>
     <string name="ui_markup_highlight">Highlight</string>
     <string name="ui_markup_underline">Underline</string>
     <string name="ui_markup_strikeout">Strike through</string>
     <string name="ui_markup_color">Color: %1$s</string>
     <string name="ui_markup_sample">Your text</string>
-    <string name="ui_markup_create">Create copy</string>
+    <string name="ui_markup_create">Save changes</string>
     <string name="ui_color_yellow">Yellow</string>
     <string name="ui_color_orange">Orange</string>
     <string name="ui_color_green">Green</string>

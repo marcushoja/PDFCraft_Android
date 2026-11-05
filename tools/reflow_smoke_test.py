@@ -1,7 +1,7 @@
 """Reflow UI, saved text position, full screen, search and PDF export smoke test."""
 from pathlib import Path
 import time
-from smoke_test import adb, hierarchy, tap, records, screenshot, wait_hierarchy
+from smoke_test import adb, hierarchy, tap, records, screenshot, wait_hierarchy, wait_local_edit
 
 
 def main():
@@ -56,11 +56,11 @@ def main():
     tap(text="PDF-Werkzeuge")
     tap(text="Notiz hinzufügen")
     adb("shell", "input", "text", "Smoke-Test-Notiz")
+    before = max(records(), key=lambda d: d['lastOpened'])
+    count = len(records())
     tap(text="Weiter")
-    wait_hierarchy(lambda nodes: any(n.get("text") == "Neue PDF ist fertig" for n in nodes))
-    tap(text="Öffnen")
-    wait_hierarchy(lambda nodes: any("-notiz.pdf" in n.get("text", "") for n in nodes))
-    assert any("-notiz.pdf" in n.get("text", "") for n in hierarchy().iter("node")), "Edited copy not opened"
+    wait_local_edit(before)
+    assert len(records()) == count, 'Note created an extra library copy'
     screenshot(output, "note-copy.png")
     tap(description="Leseoptionen")
     tap(text="Drucken")

@@ -15,14 +15,14 @@
     <string name="ui_selection_copy">Copier</string>
     <string name="ui_selection_all">Tout sélectionner</string>
     <string name="ui_selection_copied">Texte copié</string>
-    <string name="ui_tools_copy_hint">Les modifications sont enregistrées dans une nouvelle copie PDF.</string>
+    <string name="ui_tools_copy_hint">Les modifications mettent à jour la copie locale ; l’original reste intact. Les signatures numériques peuvent devenir invalides et le chiffrement existant peut être supprimé.</string>
     <string name="ui_markup_matches">Page %1$s · Toutes les occurrences correspondantes sur cette page. Le texte doit tenir sur une seule ligne PDF ; les scans nécessitent un OCR.</string>
     <string name="ui_markup_highlight">Surligner</string>
     <string name="ui_markup_underline">Souligner</string>
     <string name="ui_markup_strikeout">Barrer</string>
     <string name="ui_markup_color">Couleur : %1$s</string>
     <string name="ui_markup_sample">Votre texte</string>
-    <string name="ui_markup_create">Créer une copie</string>
+    <string name="ui_markup_create">Enregistrer</string>
     <string name="ui_color_yellow">Jaune</string>
     <string name="ui_color_orange">Orange</string>
     <string name="ui_color_green">Vert</string>

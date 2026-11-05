@@ -1,5 +1,39 @@
 # Prüfstand · 13. Oktober 2026
 
+## Menüs, manuelle Updates und lokale Bearbeitung · 5. November 2026
+
+Das Bibliotheksmenü bietet „Auf Updates prüfen“ und die Einstellungen. Die manuelle
+Prüfung umgeht die Tagesfrist und zeigt auch bereits geschlossene Update-Angebote
+wieder an; offline/fehlerhaft/aktuell erhalten eine Rückmeldung. Oben entfällt das
+Herz; unten bleibt „Buy me a coffee“ mit dem bisherigen Unterstützungsdialog.
+„PDF-Werkzeuge“ steht im Lesemenü zuerst. Drehung bietet das gesamte Dokument oder
+ausgewählte Seiten, danach den Winkel.
+
+Bearbeitungen aktualisieren dieselbe private Bibliothekskopie samt festem Eintrag
+und Namen. Der Inhalts-Hash wird separat gespeichert; alte Einträge ohne dieses
+Feld verwenden weiterhin ihre bisherige Hash-ID. Gleiche bearbeitete Inhalte
+werden beim erneuten Import erkannt; der unveränderte externe Ursprung kann erneut
+separat importiert werden. Seitenauswahl/-löschung ordnet Lesezeichen und Leseseite
+neu zu. Aufteilen/Zusammenführen erzeugen weiterhin eigenständige Dokumente.
+
+Die neue PDF wird neben dem Ziel zwischengespeichert und synchronisiert. Beim
+atomaren Austausch bleibt eine temporäre Sicherung bis zum Metadaten-Commit
+erhalten; ein Commit-Fehler stellt die bisherigen Bytes wieder her. Der geänderte
+Dateizeitstempel verhindert alte Render-/Text-/Vorschaubilder. Es gibt keine
+Versionshistorie und kein Undo. Externe Originale werden nicht überschrieben.
+
+Neue JVM-Tests prüfen manuellen Update-Status, übergangene Tagesfrist/geschlossene
+Hinweise, Menü-Reihenfolge, Dateiaustausch bei noch geöffnetem Leser, Fehler-Rollback,
+ungültige/abgebrochene Ausgaben und das Entfernen temporärer Dateien. Android-Tests
+ergänzen Gesamtdrehung samt Berechtigungen, wiederholte Bearbeitung ohne neue
+Bibliothekseinträge, Hash-Deduplizierung und Zuordnung von Lesezeichen/Lesestelle.
+Die fünf betroffenen UI-Smoke-Skripte wurden auf das neue Verhalten angepasst und
+auf Python-Syntax geprüft; ein Gerätetest ist damit nicht ersetzt.
+
+Lokal erfolgreich: Debug-APK und Test-APK gebaut, alle 46 JVM-Tests und Android Lint.
+Die Android-Integrationstests wurden nur kompiliert, nicht ausgeführt: ADB antwortet
+weiterhin nicht auf die Geräteabfrage. Eine visuelle Prüfung steht noch aus.
+
 ## Automatische Update-Prüfung · 5. November 2026
 
 Beim Öffnen prüft ein separater Hintergrund-Executor das neueste öffentliche

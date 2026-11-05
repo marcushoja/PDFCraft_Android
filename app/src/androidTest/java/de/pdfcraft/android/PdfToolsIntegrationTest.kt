@@ -108,6 +108,18 @@ class PdfToolsIntegrationTest {
         assertNotEquals(source.canonicalPath, rotated.canonicalPath)
     }
 
+    @Test fun rotateEntirePdfAccumulatesRotationOnEveryPage() {
+        val source = sample()
+        val original = source.readBytes()
+        val onePage = track(tools.rotate(source, listOf(1), 90))
+        val allPages = track(tools.rotateAll(onePage, 270))
+        PDDocument.load(allPages).use { pdf ->
+            assertEquals(listOf(270, 0, 270), (0 until pdf.numberOfPages).map { pdf.getPage(it).rotation })
+        }
+        assertArrayEquals(original, source.readBytes())
+        expectFailure("90") { tools.rotateAll(source, 45) }
+    }
+
     @Test fun unicodeStickyNoteAndMetadataSurvive() {
         val source = sample()
         PDDocument.load(source).use { pdf ->
@@ -256,6 +268,7 @@ class PdfToolsIntegrationTest {
             pdf.save(restricted)
         }
         expectFailure("Berechtigungen") { tools.rotate(restricted, listOf(0), 90) }
+        expectFailure("Berechtigungen") { tools.rotateAll(restricted, 90) }
         expectFailure("Berechtigungen") { tools.extract(restricted, listOf(0)) }
         expectFailure("Berechtigungen") { tools.merge(listOf(source, restricted)) }
         expectFailure("Berechtigungen") { tools.addNote(restricted, 0, "Notiz") }

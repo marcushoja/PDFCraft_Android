@@ -1,4 +1,10 @@
 <resources>
+    <string name="library_menu">Bibliotheksmenü</string>
+    <string name="update_check">Auf Updates prüfen</string>
+    <string name="update_checking">Updates werden geprüft…</string>
+    <string name="update_current">PDFCraft ist auf dem neuesten Stand.</string>
+    <string name="update_offline">Keine Internetverbindung. Bitte mit Netz erneut versuchen.</string>
+    <string name="update_failed">Update-Prüfung fehlgeschlagen. Bitte später erneut versuchen.</string>
     <string name="update_available">PDFCraft %1$s verfügbar</string>
     <string name="update_download">Herunterladen</string>
     <string name="update_dismiss">Diesen Update-Hinweis schließen</string>

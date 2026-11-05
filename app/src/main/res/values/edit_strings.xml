@@ -1,0 +1,10 @@
+<resources>
+    <string name="edit_document_changed">The document has changed. Please reopen the tool.</string>
+    <string name="edit_saving">Saving local PDF</string>
+    <string name="edit_saved">Changes saved in the local copy.</string>
+    <string name="edit_failed">Could not save changes.</string>
+    <string name="edit_form">Fill in form</string>
+    <string name="rotate_scope">Rotate PDF</string>
+    <string name="rotate_all">Entire PDF</string>
+    <string name="rotate_selected">Select pages</string>
+</resources>

@@ -49,6 +49,24 @@ internal object AppUpdates {
         Preferences(context).dismissedVersion = release.versionCode
     }
 
+    private fun online(context: Context): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+        val network = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+        return network?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+            network.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    fun checkManually(context: Context, onComplete: (UpdateResult) -> Unit) {
+        val app = context.applicationContext
+        worker.execute {
+            val result = try {
+                UpdateCheck(Preferences(app), ::fetchLatest)
+                    .checkManually(System.currentTimeMillis(), installed(app), online(app))
+            } catch (_: Exception) { UpdateResult(UpdateStatus.FAILED) }
+            main.post { onComplete(result) }
+        }
+    }
+
     @Synchronized
     fun check(context: Context, onComplete: () -> Unit) {
         callbacks.add(onComplete)
@@ -56,11 +74,7 @@ internal object AppUpdates {
         val app = context.applicationContext
         worker.execute {
             try {
-                val connectivity = app.getSystemService(ConnectivityManager::class.java)
-                val network = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
-                val online = network?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                    network.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                UpdateCheck(Preferences(app), ::fetchLatest).check(System.currentTimeMillis(), installed(app), online)
+                UpdateCheck(Preferences(app), ::fetchLatest).check(System.currentTimeMillis(), installed(app), online(app))
             } catch (_: Exception) {
                 // Connectivity changes and network errors are deliberately silent.
             } finally {

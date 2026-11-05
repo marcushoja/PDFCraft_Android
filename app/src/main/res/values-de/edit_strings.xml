@@ -1,0 +1,10 @@
+<resources>
+    <string name="edit_document_changed">Das Dokument wurde gewechselt. Bitte das Werkzeug erneut öffnen.</string>
+    <string name="edit_saving">Lokale PDF wird gespeichert</string>
+    <string name="edit_saved">Änderungen in der lokalen Kopie gespeichert.</string>
+    <string name="edit_failed">Änderungen konnten nicht gespeichert werden.</string>
+    <string name="edit_form">Formular ausfüllen</string>
+    <string name="rotate_scope">PDF drehen</string>
+    <string name="rotate_all">Gesamtes PDF</string>
+    <string name="rotate_selected">Seiten auswählen</string>
+</resources>

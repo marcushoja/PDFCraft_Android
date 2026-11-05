@@ -69,6 +69,8 @@ class MainActivity : ComponentActivity() {
     private var searchProgress: AlertDialog? = null
     private var pageOverviewDialog:AlertDialog?=null
     private var supportDialog:AlertDialog?=null
+    private var checkingUpdates = false
+    private var editingDocumentId: String? = null
     private var importGeneration = 0
     private var pageSeek: SeekBar? = null
     private var importing = false
@@ -219,7 +221,7 @@ class MainActivity : ComponentActivity() {
         loadingView = null; outlinePanel = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         newRoot()
-        root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { settings() }, {
+        root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { libraryMenu() }, {
             scanner.launch(Intent(this,ScanActivity::class.java))
         }, { showSupport() }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
         refreshUpdateNotice()
@@ -230,6 +232,39 @@ class MainActivity : ComponentActivity() {
         val dialog=SupportDialog.create(this);supportDialog=dialog
         dialog.setOnDismissListener { if(supportDialog===dialog) supportDialog=null }
         dialog.show()
+    }
+
+    private fun libraryMenu() {
+        ReaderActionSheet(this, dark, listOf(
+            ReaderAction("updates", getString(R.string.update_check), "reload"),
+            ReaderAction("settings", getString(R.string.ui_settings_short), "settings")
+        )) { action -> if (action == "updates") checkUpdatesManually() else settings() }.show()
+    }
+
+    private fun checkUpdatesManually() {
+        if (checkingUpdates) return
+        checkingUpdates = true
+        Toast.makeText(this, R.string.update_checking, Toast.LENGTH_SHORT).show()
+        val activity = java.lang.ref.WeakReference(this)
+        AppUpdates.checkManually(applicationContext) { result ->
+            val current = activity.get()?.takeIf { !it.isDestroyed && !it.isFinishing } ?: return@checkManually
+            current.checkingUpdates = false
+            current.refreshUpdateNotice()
+            if (result.status == UpdateStatus.AVAILABLE && result.release != null) {
+                val release = result.release
+                AlertDialog.Builder(current).setMessage(current.getString(R.string.update_available, release.versionName))
+                    .setPositiveButton(R.string.update_download) { _, _ ->
+                        try { current.startActivity(AppUpdates.downloadIntent(release)) }
+                        catch (_: android.content.ActivityNotFoundException) {
+                            Toast.makeText(current, R.string.update_no_browser, Toast.LENGTH_SHORT).show()
+                        }
+                    }.setNegativeButton(R.string.ui_close, null).show()
+            } else Toast.makeText(current, when (result.status) {
+                UpdateStatus.CURRENT -> R.string.update_current
+                UpdateStatus.OFFLINE -> R.string.update_offline
+                else -> R.string.update_failed
+            }, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun documentMenu(doc: PdfDocument) {
@@ -399,6 +434,7 @@ class MainActivity : ComponentActivity() {
 
     private fun persistPosition() {
         val id = documentId ?: return
+        if (editingDocumentId == id) return
         val view = reader ?: return
         if (view.pageCount <= 0) return
         if (reflow && reflowLoading) return
@@ -450,25 +486,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun readerMenu() {
-        ReaderActionSheet(this, dark, listOf(
-            ReaderAction("open", "PDF öffnen", "folder"), ReaderAction("dark", "Dunkler Modus", "moon"),
-            ReaderAction("search", "Im Dokument suchen", "search"), ReaderAction("jump", "Zu Seite springen", "jump"),
-            ReaderAction("bookmark", "Seite merken", "bookmark"), ReaderAction("full", "Vollbild", "fullscreen"),
-            ReaderAction("text", if (reflow) "PDF-Ansicht" else "Textmodus / Reflow", "text"), ReaderAction("pages", "Seitenübersicht", "outline"),
-            ReaderAction("share", "Teilen", "share"), ReaderAction("print", "Drucken", "print"),
-            ReaderAction("signature", "Unterschrift", "signature"), ReaderAction("tools", "PDF-Werkzeuge", "tools"),
-            ReaderAction("reload", "PDF neu laden", "reload"), ReaderAction("info", "Dokumentinformationen", "info"),
-            ReaderAction("screenshot", "Screenshot", "camera"), ReaderAction("zoom", "Zoom zurücksetzen", "crop"),
-            ReaderAction("outline", "Inhaltsverzeichnis", "outline"), ReaderAction("bookmarks", "Meine Lesezeichen", "bookmark"),
-            ReaderAction("notes", "Notizen anzeigen", "notes"), ReaderAction("settings", "Einstellungen", "settings"),
-            ReaderAction("about", "Über PDFCraft", "info")
-        )) { action ->
+        ReaderActionSheet(this, dark, ReaderMenus.pdf(reflow)) { action ->
             when (action) {
                 "open" -> pickPdf(); "dark" -> { persistPosition(); dark = !dark; prefs.edit().putBoolean("dark",dark).apply(); documentId?.let { openDocument(it) } }
                 "search" -> searchDialog(); "jump" -> jumpDialog(); "bookmark" -> bookmarkButton?.performClick()
                 "full" -> toggleChrome(); "text" -> setReflow(!reflow); "pages" -> pagesDialog(false)
                 "share" -> currentDocument()?.let { share(store.file(it),displayName=it.name) }; "print" -> printDocument()
-                "signature" -> currentDocument()?.let { doc -> if (unlocked != null && unlocked?.owner != true) error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.") else signatureDialog(viewingFile(doc),doc.name.removeSuffix(".pdf")) }
+                "signature" -> currentDocument()?.let { doc -> if (unlocked != null && unlocked?.owner != true) error("Bearbeitung ist nur mit dem Eigentümerpasswort verfügbar.") else signatureDialog(viewingFile(doc),doc.name.removeSuffix(".pdf"),doc) }
                 "tools" -> toolsDialog(); "reload" -> { persistPosition(); documentId?.let { openDocument(it) } }
                 "info" -> propertiesDialog(); "screenshot" -> screenshotDocument(); "zoom" -> reader?.resetZoom()
                 "outline" -> outlineDialog(); "bookmarks" -> pagesDialog(true); "notes" -> notesDialog(); "settings" -> settings()
@@ -791,7 +815,44 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun runTool(name: String, task: () -> File) {
+    private fun runTool(name: String, updateCurrent: Boolean = true, pageOrder: List<Int>? = null,
+                        document: PdfDocument? = currentDocument(), task: () -> File) {
+        if (updateCurrent) {
+            val doc = document ?: return
+            if (documentId != doc.id) { error(getString(R.string.edit_document_changed)); return }
+            if (editingDocumentId != null) return
+            persistPosition()
+            val count = pageOrder?.size ?: reader?.pageCount ?: doc.pageCount
+            editingDocumentId = doc.id
+            handler.removeCallbacks(savePosition)
+            textService.cancelSearch()
+            val progress = busy(getString(R.string.edit_saving))
+            io.execute {
+                var output: File? = null
+                val result = runCatching {
+                    output = task()
+                    thumbnails.releaseDocument(store.file(doc))
+                    store.replaceContent(doc.id, output!!, count, doc.contentHash, pageOrder)
+                }
+                output?.let { if (it.parentFile == File(cacheDir, "tools")) it.delete() }
+                handler.post {
+                    progress.dismiss()
+                    if (!isDestroyed) {
+                        result.fold({
+                            if (documentId == doc.id) {
+                                reader?.close(); reader = null
+                                discardUnlockedCopy()
+                                editingDocumentId = null
+                                openDocument(doc.id)
+                                Toast.makeText(this, R.string.edit_saved, Toast.LENGTH_SHORT).show()
+                            }
+                        }, { error(it.message ?: getString(R.string.edit_failed)) })
+                    }
+                    if (editingDocumentId == doc.id) editingDocumentId = null
+                }
+            }
+            return
+        }
         val progress = busy("PDF wird verarbeitet")
         io.execute {
             val result = runCatching(task)
@@ -833,24 +894,41 @@ class MainActivity : ComponentActivity() {
         val base = doc.name.removeSuffix(".pdf")
         val labels=listOf("Seiten drehen", "Seiten extrahieren / neu ordnen", "Seiten löschen", "PDFs zusammenführen", "PDF aufteilen", "Notiz hinzufügen", "Formular ausfüllen", "Mit Passwort schützen", "Text markieren", "Handschriftlich unterschreiben", "Titel und Autor ändern")
         val icons=listOf("rotate","extract","delete","merge","split","notes","form","lock","highlight","signature","info")
-        ReaderActionSheet(this,dark,labels.mapIndexed { index,label -> ReaderAction(index.toString(),label,icons[index],index==2) },title="PDF-Werkzeuge · sichere Kopien",subtitle=getString(R.string.ui_tools_copy_hint)) { action ->
+        ReaderActionSheet(this,dark,labels.mapIndexed { index,label -> ReaderAction(index.toString(),label,icons[index],index==2) },title="PDF-Werkzeuge",subtitle=getString(R.string.ui_tools_copy_hint)) { action ->
             val index=action.toInt()
             when (index) {
-                0 -> pageSelection("Welche Seiten drehen?") { pages ->
-                    LocalizedDialogBuilder(this).setTitle("Drehung").setItems(arrayOf("90° nach rechts", "180°", "90° nach links")) { _, which -> runTool("$base-gedreht.pdf") { tools.rotate(source, pages, arrayOf(90,180,270)[which]) } }.show()
+                0 -> rotateDialog(doc, source, base)
+                1 -> pageSelection("Seiten in gewünschter Reihenfolge") { pages -> runTool("$base-auszug.pdf", pageOrder = pages, document = doc) { tools.extract(source, pages) } }
+                2 -> pageSelection("Seiten aus der Kopie löschen") { pages ->
+                    val retained = (0 until (reader?.pageCount ?: doc.pageCount)).filterNot { it in pages }
+                    runTool("$base-gekuerzt.pdf", pageOrder = retained, document = doc) { tools.deletePages(source, pages) }
                 }
-                1 -> pageSelection("Seiten in gewünschter Reihenfolge") { pages -> runTool("$base-auszug.pdf") { tools.extract(source, pages) } }
-                2 -> pageSelection("Seiten aus der Kopie löschen") { pages -> runTool("$base-gekuerzt.pdf") { tools.deletePages(source, pages) } }
                 3 -> mergeDialog()
                 4 -> splitDialog(doc)
-                5 -> textInput("Notiz auf Seite ${(reader?.currentPage ?: 0) + 1}", "Notiztext") { value -> val page = reader?.currentPage ?: 0; runTool("$base-notiz.pdf") { tools.addNote(source, page, value) } }
+                5 -> textInput("Notiz auf Seite ${(reader?.currentPage ?: 0) + 1}", "Notiztext") { value -> val page = reader?.currentPage ?: 0; runTool("$base-notiz.pdf", document = doc) { tools.addNote(source, page, value) } }
                 6 -> formsDialog(doc)
-                7 -> textInput("Passwortschutz · Lesen/Drucken erlaubt, Textextraktion und Bearbeitung gesperrt", "Passwort", true) { password -> runTool("$base-geschuetzt.pdf") { tools.protect(source, password) } }
+                7 -> textInput("Passwortschutz · Lesen/Drucken erlaubt, Textextraktion und Bearbeitung gesperrt", "Passwort", true) { password -> runTool("$base-geschuetzt.pdf", document = doc) { tools.protect(source, password) } }
                 8 -> markupDialog()
-                9 -> signatureDialog(source, base)
-                10 -> textInput("Dokumenttitel ändern", "Neuer Titel") { title -> textInput("Autor ändern", "Autor") { author -> runTool("$base-metadaten.pdf") { tools.setMetadata(source, title, author) } } }
+                9 -> signatureDialog(source, base, doc)
+                10 -> textInput("Dokumenttitel ändern", "Neuer Titel") { title -> textInput("Autor ändern", "Autor") { author -> runTool("$base-metadaten.pdf", document = doc) { tools.setMetadata(source, title, author) } } }
             }
         }.show()
+    }
+
+    private fun rotateDialog(doc: PdfDocument, source: File, base: String) {
+        fun direction(pages: List<Int>?) {
+            LocalizedDialogBuilder(this).setTitle("Drehung")
+                .setItems(arrayOf("90° nach rechts", "180°", "90° nach links")) { _, which ->
+                    runTool("$base-gedreht.pdf", document = doc) {
+                        val degrees = arrayOf(90, 180, 270)[which]
+                        if (pages == null) tools.rotateAll(source, degrees) else tools.rotate(source, pages, degrees)
+                    }
+                }.show()
+        }
+        AlertDialog.Builder(this).setTitle(R.string.rotate_scope)
+            .setItems(arrayOf(getString(R.string.rotate_all), getString(R.string.rotate_selected))) { _, which ->
+                if (which == 0) direction(null) else pageSelection("Welche Seiten drehen?") { direction(it) }
+            }.setNegativeButton(R.string.ui_cancel, null).show()
     }
 
     private fun markupDialog(selectedText:String="",exact:Pair<Int,PdfTextSelection>?=null) {
@@ -861,7 +939,7 @@ class MainActivity : ComponentActivity() {
         val savedStyle=runCatching { TextMarkupStyle.valueOf(prefs.getString("markup_style","HIGHLIGHT")!!) }.getOrDefault(TextMarkupStyle.HIGHLIGHT)
         TextMarkupDialog(this,dark,page,selectedText,prefs.getInt("markup_color",MarkupColors.values[0]),savedStyle,exactSelection=exact!=null) { query,color,style ->
             prefs.edit().putInt("markup_color",color).putString("markup_style",style.name).apply()
-            runTool("${doc.name.removeSuffix(".pdf")}-markiert.pdf") {
+            runTool("${doc.name.removeSuffix(".pdf")}-markiert.pdf", document = doc) {
                 if(exact!=null) markup.markSelection(source,page,exact.second.text,exact.second.pdfQuads,color,style)
                 else markup.markText(source,page,query,color,style)
             }
@@ -885,7 +963,7 @@ class MainActivity : ComponentActivity() {
         dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val files = docs.filterIndexed { index, _ -> selected[index] }.map { store.file(it) }
             if (files.size < 2) Toast.makeText(this, l("Mindestens zwei PDFs auswählen"), Toast.LENGTH_SHORT).show()
-            else { dialog.dismiss(); runTool("Kombiniert.pdf") { tools.merge(files) } }
+            else { dialog.dismiss(); runTool("Kombiniert.pdf", updateCurrent = false) { tools.merge(files) } }
         } }
         dialog.show()
     }
@@ -896,13 +974,16 @@ class MainActivity : ComponentActivity() {
             val count = reader?.pageCount ?: 0
             if (size == null || size !in 1..count) { error("Bitte eine Zahl von 1 bis $count eingeben."); return@textInput }
             if ((count + size - 1) / size > 100) { error("Maximal 100 Teile je Vorgang. Bitte größere Teile wählen."); return@textInput }
+            val source = viewingFile(doc)
             val progress = busy("PDF wird in lokale Kopien aufgeteilt")
             io.execute {
                 val result = runCatching {
                     (0 until count step size).forEachIndexed { index, start ->
-                        val file = tools.extract(viewingFile(doc), (start until minOf(count, start + size)).toList())
-                        val imported = store.importDocument(Uri.fromFile(file))
-                        store.rename(imported.id, "${doc.name.removeSuffix(".pdf")}-Teil-${index + 1}.pdf")
+                        val file = tools.extract(source, (start until minOf(count, start + size)).toList())
+                        try {
+                            val imported = store.importDocument(Uri.fromFile(file))
+                            store.rename(imported.id, "${doc.name.removeSuffix(".pdf")}-Teil-${index + 1}.pdf")
+                        } finally { file.delete() }
                     }
                 }
                 handler.post { progress.dismiss(); if (!isDestroyed) result.fold({ showLibrary() }, { error(it.message ?: "Aufteilen fehlgeschlagen; bereits erstellte Teile bleiben in der Bibliothek.") }) }
@@ -926,7 +1007,11 @@ class MainActivity : ComponentActivity() {
                         val input = EditText(this).apply { setText(field.value); setTextColor(ink) }
                         inputs[field.name] = input; body.addView(input)
                     }
-                    LocalizedDialogBuilder(this).setTitle("Formular in neuer Kopie ausfüllen").setView(ScrollView(this).apply { addView(body) }).setNegativeButton("Abbrechen", null).setPositiveButton("Kopie erstellen") { _, _ -> runTool("${doc.name.removeSuffix(".pdf")}-ausgefuellt.pdf") { tools.fillForms(viewingFile(doc), inputs.mapValues { it.value.text.toString() }) } }.show()
+                    LocalizedDialogBuilder(this).setTitle(getString(R.string.edit_form)).setView(ScrollView(this).apply { addView(body) }).setNegativeButton("Abbrechen", null).setPositiveButton(getString(R.string.ui_markup_create)) { _, _ ->
+                        val values = inputs.mapValues { it.value.text.toString() }
+                        val source = viewingFile(doc)
+                        runTool("${doc.name.removeSuffix(".pdf")}-ausgefuellt.pdf", document = doc) { tools.fillForms(source, values) }
+                    }.show()
                 }, { error(it.message ?: "Formular konnte nicht geladen werden") })
             }
         }
@@ -972,7 +1057,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun signatureDialog(source: File, base: String) {
+    private fun signatureDialog(source: File, base: String, doc: PdfDocument) {
         val pad = SignaturePadView(this)
         val body = column().apply {
             setPadding(dp(16),dp(12),dp(16),dp(12))
@@ -980,9 +1065,9 @@ class MainActivity : ComponentActivity() {
             addView(pad, LinearLayout.LayoutParams(-1,dp(220)))
             addView(button("Neu zeichnen") { pad.clear() })
         }
-        LocalizedDialogBuilder(this).setTitle("Handschriftliche Unterschrift").setView(body).setNegativeButton("Abbrechen", null).setPositiveButton("Kopie erstellen") { _, _ ->
+        LocalizedDialogBuilder(this).setTitle("Handschriftliche Unterschrift").setView(body).setNegativeButton("Abbrechen", null).setPositiveButton(getString(R.string.ui_markup_create)) { _, _ ->
             val strokes = pad.strokes(); val page = reader?.currentPage ?: 0
-            runTool("$base-unterschrieben.pdf") { markup.addSignature(source, page, strokes) }
+            runTool("$base-unterschrieben.pdf", document = doc) { markup.addSignature(source, page, strokes) }
         }.show()
     }
 

@@ -16,8 +16,24 @@ internal interface UpdateState {
     fun saveSuccess(time: Long, release: AppRelease?)
 }
 
+internal enum class UpdateStatus { AVAILABLE, CURRENT, OFFLINE, FAILED }
+internal data class UpdateResult(val status: UpdateStatus, val release: AppRelease? = null)
+
 /** Only successful checks consume the daily interval. Failed/offline checks can retry next launch. */
 internal class UpdateCheck(private val state: UpdateState, private val fetch: () -> AppRelease?) {
+    fun checkManually(now: Long, installed: Int, online: Boolean): UpdateResult {
+        if (!online) return UpdateResult(UpdateStatus.OFFLINE)
+        return try {
+            val release = fetch()
+            state.saveSuccess(now, release)
+            // An explicit check also offers a release whose automatic notice was dismissed.
+            if (release != null && release.versionCode > installed &&
+                release.downloadUrl == AppRelease.downloadUrl(release.versionCode))
+                UpdateResult(UpdateStatus.AVAILABLE, release)
+            else UpdateResult(UpdateStatus.CURRENT)
+        } catch (_: Exception) { UpdateResult(UpdateStatus.FAILED) }
+    }
+
     fun available(installed: Int): AppRelease? = state.release?.takeIf {
         it.versionCode > installed && it.versionCode > state.dismissedVersion &&
             it.downloadUrl == AppRelease.downloadUrl(it.versionCode)

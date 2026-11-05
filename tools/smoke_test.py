@@ -56,6 +56,20 @@ def records():
     return json.loads(ET.fromstring(xml).find("string[@name='documents']").text)
 
 
+def wait_local_edit(document, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        updated = next((d for d in records() if d["id"] == document["id"]), None)
+        if updated and updated.get("contentHash", updated["id"]) != document.get("contentHash", document["id"]):
+            wait_hierarchy(lambda nodes: any(n.get("resource-id") == PACKAGE + ":id/menu_button" for n in nodes)
+                           and not any(n.get("resource-id") == PACKAGE + ":id/pdf_loading" or
+                                       n.get("text") == "Lokale PDF wird gespeichert" for n in nodes))
+            assert updated["name"] == document["name"], "Editing unexpectedly renamed the library PDF"
+            return updated
+        time.sleep(.2)
+    raise AssertionError("Local PDF was not updated under its existing library ID")
+
+
 def check(label, checked=True):
     node = next(n for n in hierarchy().iter("node") if n.get("text") == label)
     if (node.get("checked") == "true") != checked:
@@ -147,7 +161,7 @@ def main():
     assert any(n.get("text") == "6 / 8" for n in hierarchy().iter("node")), "Single-page navigation failed"
     pdf_node = next(n for n in hierarchy().iter("node") if n.get("content-desc", "").startswith("PDF-Dokument"))
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", pdf_node.get("bounds")))
-    adb("shell", "input", "touchscreen", "-d", "0", "swipe", str(x1 + (x2-x1)*4//5), str((y1+y2)//2),
+    adb("shell", "input", "touchscreen", "-d", "0", "swipe", str(x1 + (x2-x1)*96//100), str((y1+y2)//2),
         str(x1 + (x2-x1)//5), str((y1+y2)//2), "500")
     screenshot(output, "page-turn.png")
     wait_hierarchy(lambda nodes: any(n.get("text") == "7 / 8" for n in nodes))

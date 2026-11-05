@@ -50,9 +50,11 @@ def main():
     menu=long_press_text();selection_action('Text markieren',menu)
     wait_hierarchy(lambda ns:any('Nur der ausgewählte Text' in n.get('text','') for n in ns))
     tap(description='Grün');tap(description='Hervorheben');screenshot(out,'exact-palette.png')
-    tap(text='Kopie erstellen')
-    wait_hierarchy(lambda ns:any(n.get('text')=='Neue PDF ist fertig' for n in ns))
-    tap(text='Öffnen');screenshot(out,'exact-highlight.png')
+    from smoke_test import records, wait_local_edit
+    before = max(records(), key=lambda d: d['lastOpened'])
+    tap(text='Änderungen speichern')
+    wait_local_edit(before)
+    screenshot(out,'exact-highlight.png')
     print('PASS: long press rendered PDF, native Copy/Mark menu, exact selected glyph marking')
 
 if __name__=='__main__':main()

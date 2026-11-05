@@ -1,7 +1,7 @@
 """Exercise the icon tool grid, color picker and real saved PDF markup copy."""
 from pathlib import Path
 import time
-from smoke_test import adb,tap,wait_hierarchy,screenshot
+from smoke_test import adb,tap,wait_hierarchy,screenshot,records,wait_local_edit
 
 def main():
     out=Path('/tmp/opencode/pdfcraft-markup');out.mkdir(parents=True,exist_ok=True)
@@ -19,15 +19,16 @@ def main():
     if 'mInputShown=true' in adb('shell','dumpsys','input_method'):
         adb('shell','input','keyevent','4')
         time.sleep(0.5)
-    tap(text='Kopie erstellen')
-    wait_hierarchy(lambda ns:any(n.get('text')=='Neue PDF ist fertig' for n in ns))
-    tap(text='Öffnen')
-    wait_hierarchy(lambda ns:any('-markiert.pdf' in n.get('text','') for n in ns))
+    before = max(records(), key=lambda d: d['lastOpened'])
+    count = len(records())
+    tap(text='Änderungen speichern')
+    wait_local_edit(before)
+    assert len(records()) == count, 'Markup created an extra library copy'
     screenshot(out,'blue-underline.png')
     tap(description='Leseoptionen');tap(text='Drucken')
     wait_hierarchy(lambda ns:any(n.get('package')=='com.android.printspooler' for n in ns))
     screenshot(out,'annotated-print.png')
     adb('shell','input','keyevent','4')
-    print('PASS: icon PDF tools, blue underline palette, actual new annotated PDF opened')
+    print('PASS: icon PDF tools, blue underline palette, current local PDF updated without another copy')
 
 if __name__=='__main__':main()

@@ -91,7 +91,7 @@ class LibraryLayoutIntegrationTest {
                 layout()
                 assertTrue(grid().numColumns>=2)
                 assertEquals(LinearLayout.VERTICAL,(grid().adapter.getView(0,cell,grid()) as LinearLayout).orientation)
-                assertTrue(descendants(view).filterIsInstance<TextView>().any { it.text.toString()=="Buy me some tokens" && it.isClickable })
+                assertTrue(descendants(view).filterIsInstance<TextView>().any { it.text.toString()=="Buy me a coffee" && it.isClickable })
             }
         } finally {
             activity?.let { host -> i.runOnMainSync { host.finish() };i.waitForIdleSync() }

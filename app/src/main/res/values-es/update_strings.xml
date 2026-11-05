@@ -1,4 +1,10 @@
 <resources>
+    <string name="library_menu">Menú de la biblioteca</string>
+    <string name="update_check">Buscar actualizaciones</string>
+    <string name="update_checking">Buscando actualizaciones…</string>
+    <string name="update_current">PDFCraft está actualizado.</string>
+    <string name="update_offline">Sin conexión a Internet. Inténtalo cuando tengas conexión.</string>
+    <string name="update_failed">No se pudo comprobar. Inténtalo más tarde.</string>
     <string name="update_available">PDFCraft %1$s disponible</string>
     <string name="update_download">Descargar</string>
     <string name="update_dismiss">Ocultar esta actualización</string>

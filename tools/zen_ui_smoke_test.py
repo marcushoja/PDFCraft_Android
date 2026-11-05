@@ -20,6 +20,7 @@ def main():
     adb("shell","am","force-stop",package)
     adb("shell","am","start","-W","-n",f"{package}/.MainActivity","-a","android.intent.action.MAIN")
     wait_hierarchy(lambda nodes: any("Marcus Hoja" in n.get("text","") for n in nodes))
+    tap_id(f"{package}:id/library_menu")
     tap(description="Einstellungen")
     check("Dunkle Oberfläche",False)
     check("PDF-Farben für die Nacht invertieren",False)
@@ -31,6 +32,7 @@ def main():
             "fr":("Paramètres","Appliquer","Ouvrir un PDF","Bibliothèque"),
             "es":("Ajustes","Aplicar","Abrir PDF","Biblioteca")}
     for tag,autonym in [("en","English"),("fr","Français"),("es","Español"),("de","Deutsch")]:
+        tap_id(f"{package}:id/library_menu")
         tap(description=labels[current][0])
         tap_id(f"{package}:id/language_spinner")
         tap(text=autonym)

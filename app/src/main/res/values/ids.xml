@@ -1,4 +1,5 @@
 <resources>
+    <item name="library_menu" type="id" />
     <item name="update_notice" type="id" />
     <item name="update_download" type="id" />
     <item name="update_dismiss" type="id" />

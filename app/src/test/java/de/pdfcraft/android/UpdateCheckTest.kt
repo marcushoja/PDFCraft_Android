@@ -17,6 +17,28 @@ class UpdateCheckTest {
     private val now = 1_800_000_000_000L
     private fun release(code: Int) = AppRelease(code, AppRelease.downloadUrl(code))
 
+    @Test fun manualCheckBypassesDailyIntervalAndDismissedNotice() {
+        val state = MemoryState().apply { saveSuccess(now, release(42)); dismissedVersion = 42 }
+        var requests = 0
+        val checker = UpdateCheck(state) { requests++; release(42) }
+        assertNull(checker.check(now + 1000, 41, true))
+        assertEquals(0, requests)
+        assertEquals(UpdateResult(UpdateStatus.AVAILABLE, release(42)), checker.checkManually(now + 1000, 41, true))
+        assertEquals(1, requests)
+        assertEquals(now + 1000, state.lastSuccess)
+        assertEquals(42, state.dismissedVersion)
+    }
+
+    @Test fun manualCheckReportsOfflineFailureAndCurrentWithoutConsumingFailedAttempts() {
+        val state = MemoryState()
+        val checker = UpdateCheck(state) { throw IOException() }
+        assertEquals(UpdateStatus.OFFLINE, checker.checkManually(now, 41, false).status)
+        assertEquals(UpdateStatus.FAILED, checker.checkManually(now, 41, true).status)
+        assertEquals(0L, state.lastSuccess)
+        assertEquals(UpdateStatus.CURRENT, UpdateCheck(state) { release(41) }.checkManually(now, 41, true).status)
+        assertEquals(now, state.lastSuccess)
+    }
+
     @Test fun successfulCheckRunsOnceInTwentyFourHoursAndReusesCachedNotice() {
         val state = MemoryState()
         var requests = 0

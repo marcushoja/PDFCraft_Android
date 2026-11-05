@@ -1,0 +1,10 @@
+<resources>
+    <string name="edit_document_changed">Le document a changé. Rouvrez l’outil.</string>
+    <string name="edit_saving">Enregistrement du PDF local</string>
+    <string name="edit_saved">Modifications enregistrées dans la copie locale.</string>
+    <string name="edit_failed">Impossible d’enregistrer les modifications.</string>
+    <string name="edit_form">Remplir le formulaire</string>
+    <string name="rotate_scope">Pivoter le PDF</string>
+    <string name="rotate_all">Tout le PDF</string>
+    <string name="rotate_selected">Sélectionner des pages</string>
+</resources>

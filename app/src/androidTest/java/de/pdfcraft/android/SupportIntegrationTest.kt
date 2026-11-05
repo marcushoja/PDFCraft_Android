@@ -20,7 +20,7 @@ class SupportIntegrationTest {
     private val i=InstrumentationRegistry.getInstrumentation()
     private val context get()=i.targetContext
 
-    @Test fun greenSupportIconOpensOptionalDialogAndOnlyConfirmationContinues() {
+    @Test fun coffeeFooterOpensOptionalDialogAndHeaderOnlyHasLibraryMenu() {
         val activity=i.startActivitySync(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         val loader=ThumbnailLoader(context)
         var continued=0
@@ -28,34 +28,25 @@ class SupportIntegrationTest {
         lateinit var dialog:AlertDialog
         try {
             i.runOnMainSync {
-                assertNotNull(activity.findViewById<ImageView>(R.id.support_button))
+                assertNull(activity.findViewById<ImageView>(R.id.support_button))
+                assertNotNull(activity.findViewById<android.view.View>(R.id.library_menu))
                 val library=LibraryView(activity,DocumentStore(activity),loader,false,{},{},{},{},onSupport={
                     dialog=SupportDialog.create(activity) { continued++ };created=true;dialog.show()
                 })
                 activity.setContentView(library)
-                val icon=library.findViewById<ImageView>(R.id.support_button)
-                assertEquals(activity.getString(R.string.support_title),icon.contentDescription)
-                val image=Bitmap.createBitmap(64,64,Bitmap.Config.ARGB_8888)
-                try {
-                    icon.drawable.setBounds(0,0,64,64);icon.drawable.draw(Canvas(image))
-                    val pixel=image.getPixel(32,28)
-                    assertTrue(Color.green(pixel)>Color.red(pixel));assertTrue(Color.green(pixel)>Color.blue(pixel))
-                    assertEquals(255,Color.alpha(pixel))
-                } finally { image.recycle() }
-                assertEquals(0,continued)
-                icon.performClick();assertTrue(dialog.isShowing);assertEquals(0,continued)
-                assertEquals(activity.getString(R.string.support_message),dialog.findViewById<android.widget.TextView>(android.R.id.message).text.toString())
-                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();assertEquals(0,continued)
+                assertNull(library.findViewById<ImageView>(R.id.support_button))
+                assertEquals(activity.getString(R.string.library_menu),
+                    library.findViewById<android.view.View>(R.id.library_menu).contentDescription)
                 fun descendants(view:android.view.View):List<android.view.View> = listOf(view)+if(view is android.view.ViewGroup)
                     (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-                val footerLink=descendants(library).filterIsInstance<android.widget.TextView>().single { it.text.toString()=="Buy me some tokens" }
+                val footerLink=descendants(library).filterIsInstance<android.widget.TextView>().single { it.text.toString()=="Buy me a coffee" }
                 assertNotNull(footerLink.compoundDrawables[0])
                 footerLink.performClick();assertTrue(dialog.isShowing);assertEquals(0,continued)
                 dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();assertEquals(0,continued)
             }
             i.waitForIdleSync();assertEquals(0,continued)
             i.runOnMainSync {
-                activity.findViewById<ImageView>(R.id.support_button).performClick()
+                dialog.show()
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
             }
             i.waitForIdleSync();assertEquals(1,continued)

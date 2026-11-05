@@ -24,6 +24,7 @@ data class PdfDocument(
     val bookmarks: List<Int>,
     val reflowOffset: Float = 0f,
     val lastView: String = "pdf",
+    val contentHash: String = id,
 )
 
 /** Imports must run on a worker thread. No persistent URI permissions are needed. */
@@ -106,12 +107,16 @@ class DocumentStore(context: Context) {
             if (!PDF_HEADER.containsMatchIn(prefix)) {
                 throw IOException("Die ausgewählte Datei ist keine gültige PDF-Datei (PDF-Kopf fehlt).")
             }
-            val id = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
             return synchronized(LOCK) {
                 val documents = readDocuments()
-                val existing = documents.firstOrNull { it.id == id }
+                val existing = documents.firstOrNull { it.contentHash == hash }
                 // An import of identical bytes retains all metadata and reading progress.
                 if (existing != null && file(existing).isFile) return@synchronized existing
+                // Edited documents retain their ID, so their original hash may already be occupied.
+                val id = existing?.id ?: if (documents.none { it.id == hash }) hash else
+                    MessageDigest.getInstance("SHA-256").digest(java.util.UUID.randomUUID().toString().toByteArray())
+                        .joinToString("") { "%02x".format(it.toInt() and 255) }
                 val document = existing ?: PdfDocument(
                     id = id,
                     name = name,
@@ -123,6 +128,7 @@ class DocumentStore(context: Context) {
                     offset = 0f,
                     zoom = 1f,
                     bookmarks = emptyList(),
+                    contentHash = hash,
                 )
                 val destination = file(document)
                 val created = !destination.exists()
@@ -161,6 +167,43 @@ class DocumentStore(context: Context) {
                     progress.pageCount == 0 || it < progress.pageCount
                 },
             )
+        }
+    }
+
+    /** Replaces only the private library copy, retaining ID, name and reading metadata. */
+    fun replaceContent(id: String, source: File, pageCount: Int, expectedHash: String,
+                       pageOrder: List<Int>? = null): PdfDocument {
+        require(pageCount > 0)
+        require(pageOrder == null || pageOrder.size == pageCount)
+        val initial = get(id) ?: throw IOException("Dokument ist nicht mehr in der Bibliothek.")
+        require(pageOrder == null || (pageOrder.distinct().size == pageOrder.size &&
+            pageOrder.all { it >= 0 && (initial.pageCount == 0 || it < initial.pageCount) }))
+        LocalPdfReplacement(file(initial), source).use { staged ->
+            return synchronized(LOCK) {
+                val documents = readDocuments()
+                val current = documents.firstOrNull { it.id == id }
+                    ?: throw IOException("Dokument ist nicht mehr in der Bibliothek.")
+                if (current.contentHash != expectedHash) throw IOException("Die lokale PDF wurde inzwischen geändert. Bitte erneut öffnen.")
+                val mappedPage = pageOrder?.indexOf(current.page)?.takeIf { it >= 0 }
+                    ?: current.page.coerceIn(0, pageCount - 1)
+                val updated = current.copy(
+                    contentHash = staged.contentHash,
+                    pageCount = pageCount,
+                    page = mappedPage,
+                    offset = if (pageOrder == null || pageOrder.getOrNull(mappedPage) == current.page) current.offset else 0f,
+                    reflowOffset = if (pageOrder == null || pageOrder.getOrNull(mappedPage) == current.page) current.reflowOffset else 0f,
+                    bookmarks = if (pageOrder == null) current.bookmarks.filter { it < pageCount }
+                        else pageOrder.mapIndexedNotNull { index, old -> index.takeIf { old in current.bookmarks } },
+                )
+                staged.commit {
+                    try { writeDocuments(documents.map { if (it.id == id) updated else it }) }
+                    catch (failure: Exception) {
+                        runCatching { writeDocuments(documents) }.exceptionOrNull()?.let { failure.addSuppressed(it) }
+                        throw failure
+                    }
+                    updated
+                }
+            }
         }
     }
 
@@ -262,6 +305,7 @@ class DocumentStore(context: Context) {
                         progress.pageCount, progress.page, progress.offset, progress.zoom, pages,
                         json.optDouble("reflowOffset", 0.0).toFloat().let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0f },
                         if (json.optString("lastView") == "reflow") "reflow" else "pdf",
+                        json.optString("contentHash", id).takeIf { ID_PATTERN.matches(it) } ?: id,
                     ),
                 )
             } catch (error: Exception) {
@@ -287,6 +331,7 @@ class DocumentStore(context: Context) {
                 put("bookmarks", JSONArray(document.bookmarks))
                 put("reflowOffset", document.reflowOffset.toDouble())
                 put("lastView", document.lastView)
+                put("contentHash", document.contentHash)
             })
         }
         if (!preferences.edit().putString(DOCUMENTS, array.toString()).commit()) {

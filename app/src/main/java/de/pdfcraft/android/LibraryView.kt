@@ -99,15 +99,10 @@ class LibraryView(
         orientation = VERTICAL
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(12),dp(12),dp(6)) }
         header.addView(label("PDFCraft", 24f).apply { setTypeface(typeface, Typeface.BOLD) }, LayoutParams(0,-2,1f))
-        onSupport?.let { support ->
-            header.addView(ImageView(context).apply {
-                id=R.id.support_button;contentDescription=context.getString(R.string.support_title);isFocusable=true
-                setImageDrawable(MaterialSymbols.drawable(context,"support",if(dark) 0xffa5d6a7.toInt() else 0xff4f7d53.toInt()))
-                setPadding(dp(12),dp(12),dp(12),dp(12));background=rounded(tint,24)
-                setOnClickListener { support() }
-            },LayoutParams(dp(48),dp(48)).apply { marginEnd=dp(8) })
-        }
-        header.addView(action("", "Einstellungen") { onSettings() }.apply { setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"menu",accent),null,null,null) })
+        header.addView(action("", context.getString(R.string.library_menu)) { onSettings() }.apply {
+            id = R.id.library_menu
+            setCompoundDrawablesWithIntrinsicBounds(MaterialSymbols.drawable(context,"menu",accent),null,null,null)
+        })
         addView(header)
         addView(updateContainer, LayoutParams(-1, -2).apply { setMargins(dp(16), 0, dp(16), 0) })
         val search = EditText(context).apply {
@@ -165,7 +160,7 @@ class LibraryView(
         val bottom = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20),dp(8),dp(16),dp(12)) }
         val credits = LinearLayout(context).apply { orientation = VERTICAL }
         credits.addView(label("Von Marcus Hoja\nOffline · private Kopien", 12f).apply { setTextColor(ZenColors.of(dark).brown) })
-        credits.addView(action("Buy me some tokens", "Buy me some tokens") {
+        credits.addView(action("Buy me a coffee", "Buy me a coffee") {
             if (onSupport != null) onSupport.invoke() else SupportDialog.create(context).show()
         }.apply {
             textSize = 12f; gravity = Gravity.START or Gravity.CENTER_VERTICAL; setPadding(0,0,0,0)

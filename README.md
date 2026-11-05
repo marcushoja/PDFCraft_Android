@@ -1,12 +1,12 @@
 # PDFCraft Android
 
-[![☕ Buy me some tokens](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20some%20tokens-4F7D53?style=for-the-badge)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
+[![☕ Buy me a coffee](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-4F7D53?style=for-the-badge)](https://buy.stripe.com/5kQ00c1yP9PQfDP6vV9bO04?client_reference_id=pdfcraft_android)
 
 [Download PDFCraft.apk](https://github.com/marcushoja/PDFCraft_Android/releases/latest/download/PDFCraft.apk)
 
 Many hours of development and testing have gone into PDFCraft. If you enjoy the app, you are welcome to support the project voluntarily. Your support helps with further development. Thank you!
 
-The green heart in the library and **Buy me some tokens** beneath the author credits open a friendly support message. **Buy me a coffee** in that dialog opens the existing Stripe support page in your browser only when you choose to continue. Support is optional and does not unlock features or affect access to your PDFs.
+**Buy me a coffee** beneath the author credits opens a friendly support message. The confirmation in that dialog opens the existing Stripe support page in your browser only when you choose to continue. There is no separate support icon next to the library menu. Support is optional and does not unlock features or affect access to your PDFs.
 
 ## Download the APK
 
@@ -15,6 +15,8 @@ Get the latest installable APK from [GitHub Releases](https://github.com/marcush
 Every push to `main` automatically builds and checks the app and publishes a release with its SHA-256 checksum. These are **developer-signed preview builds**, not Play Store releases. GitHub builds use the fixed project signing key from the `PDFCRAFT_SIGNING_BUNDLE` secret; its certificate is checked before publication. Releases from build 11 onward support normal updates without uninstalling. Older releases may require a one-time reinstall: save important documents first. Local builds without the release signing environment use a different debug key and cannot update GitHub builds directly. See [SIGNING.md](SIGNING.md).
 
 On opening the app, PDFCraft checks GitHub Releases in the background when Internet access is available, at most once every 24 hours after a successful check. If offline or a check fails, it silently tries again the next time the app is opened. A small notice in the library offers **Download**, which opens the official version-specific APK URL in your browser. Android still asks you to confirm installation. Closing a notice hides that release permanently, but not future releases. There are no update dialogs over an open PDF and no background APK downloads.
+
+The library hamburger menu also offers **Check for updates** and **Settings**. An explicit update check bypasses the daily interval and also offers a previously dismissed update, with feedback if the app is current, offline, or the check fails.
 
 ## Features
 
@@ -55,6 +57,8 @@ On opening the app, PDFCraft checks GitHub Releases in the background when Inter
 ### PDF tools
 
 - Rotate, extract/reorder, delete, merge and split pages; add/read notes, mark text, fill standard forms, edit metadata and apply password protection.
+- **PDF tools** is the first item in the reader menu. Rotation offers **Entire PDF** or selected pages before choosing the angle.
+- Edits update the existing private library copy rather than creating another library entry each time. Names, reading progress and bookmarks are retained; page selection/reordering remaps bookmarks and the reading page. A staged, synced file replaces the local PDF atomically, with rollback if metadata saving fails. Imported originals outside the app are never modified. Splitting and merging still produce separate documents by design.
 - Icon-grid tool menus. Markup offers six colors and highlight, underline and strikeout, with preview and remembered choices. Reflow selection includes **Mark text**. Query-based marking matches text on the current page; scans require OCR.
 - Direct selection on rendered pages: long press, move selection handles, copy, select all or mark. Markup uses only the selected glyphs, including multiline selections, instead of marking every identical word. Supports crop offsets, 0°/90°/180°/270° page rotations, zoom and scrolling. Selection remains on one page; individually rotated/skewed or vertical glyphs are skipped.
 - Image-heavy PDFs display natively first, without waiting for complete annotation inspection. Page sizes and prepared viewing copies use a bounded private cache of up to 512 MiB with seven-day expiry. A separate 32-MiB RAM bitmap cache speeds reopening. Decrypted `unlocked-*` views bypass persistent and cross-document caching. Annotations may appear shortly after the first page.
@@ -65,7 +69,7 @@ On opening the app, PDFCraft checks GitHub Releases in the background when Inter
 
 - Original documents are never modified. There are no accounts, advertising or telemetry. Internet and network-state permissions are used for the startup GitHub release check; GitHub receives a normal HTTPS request (including your IP address), but no documents, filenames, reading progress or device identifiers. PDFs are processed locally. Cloud file providers may need their own network access during import. Downloads and the optional support link open externally in a browser; no PDFs are attached or shared with them.
 - **Not full PdfCraft/Acrobat parity:** OCR, reliable editing of existing PDF text, Office conversion, safe redaction, cryptographic signatures, layers/attachments, PDF/A/preflight tools, XFA, full comment threads and other advanced features remain unimplemented. Night rendering also inverts images.
-- Tools create new copies rather than incremental updates, which can invalidate existing digital signatures. Edited copies are saved without the original encryption unless password protection is explicitly applied.
+- Tools rewrite the private library copy rather than making incremental PDF updates, which can invalidate existing digital signatures. Edits remove the previous encryption unless password protection is explicitly applied. There is no edit history or undo; keep an external backup of important PDFs.
 - Extraction and page deletion do not repair every outline or form reference to removed pages and are **not safe redaction**. Newly protected copies allow reading/printing but restrict text extraction/editing. Merging uses imported library documents; splitting creates private library copies.
 
 See [FEATURES_TODO.md](FEATURES_TODO.md) for remaining features and [TESTING.md](TESTING.md) for validation details. These supporting documents are currently in German.
