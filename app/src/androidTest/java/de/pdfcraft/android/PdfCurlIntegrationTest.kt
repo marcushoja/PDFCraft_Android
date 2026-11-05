@@ -210,6 +210,24 @@ class PdfCurlIntegrationTest {
                 }
             }
             instrumentation.runOnMainSync {
+                for ((from, to) in listOf(.10f to .45f, .90f to .55f)) {
+                    reader.goToPage(2)
+                    val start = SystemClock.uptimeMillis()
+                    for ((action, x) in listOf(MotionEvent.ACTION_DOWN to from, MotionEvent.ACTION_MOVE to to)) {
+                        val event = MotionEvent.obtain(start, start + if (action == MotionEvent.ACTION_DOWN) 0 else 80,
+                            action, reader.width * x, reader.height * .5f, 0)
+                        reader.onTouchEvent(event); event.recycle()
+                    }
+                    assertTrue("A pull at the 10% screen boundary must start a fold", turning.getBoolean(reader))
+                    val cancel = MotionEvent.obtain(start, start + 100, MotionEvent.ACTION_CANCEL,
+                        reader.width * to, reader.height * .5f, 0)
+                    reader.onTouchEvent(cancel); cancel.recycle()
+                }
+                reader.goToPage(2)
+                drag(.11f, .8f)
+                assertFalse("Left-side pulls outside the 10% zone must not turn", turning.getBoolean(reader))
+                drag(.89f, .2f)
+                assertFalse("Right-side pulls outside the 10% zone must not turn", turning.getBoolean(reader))
                 drag(.5f, .02f)
                 assertFalse("Center-origin swipe must not start a turn", turning.getBoolean(reader))
                 drag(.5f, .98f)

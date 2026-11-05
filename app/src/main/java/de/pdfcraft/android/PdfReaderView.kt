@@ -1270,13 +1270,8 @@ class PdfReaderView(context: Context) : View(context) {
             turnEdge = 0
             if (!vertical && zoom <= 1.01f && pageCount > 0) {
                 val rect = if (spread) RectF(0f, 0f, width.toFloat(), height.toFloat()) else sheetRect(currentPage)
-                val edge = min(rect.width() * .18f, 48f * resources.displayMetrics.density)
                 if (downY in max(0f, rect.top)..min(height.toFloat(), rect.bottom)) {
-                    turnEdge = when {
-                        abs(downX - rect.left) <= edge -> -1
-                        abs(downX - rect.right) <= edge -> 1
-                        else -> 0
-                    }
+                    turnEdge = PdfTurnEdges.at(downX, width)
                 }
             }
             parent?.requestDisallowInterceptTouchEvent(true)

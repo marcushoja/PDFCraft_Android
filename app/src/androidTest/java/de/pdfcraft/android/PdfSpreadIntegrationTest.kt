@@ -130,9 +130,9 @@ class PdfSpreadIntegrationTest {
         }
         swipe(reader.width * .5f, reader.width * .98f)
         assertEquals("Center-origin swipes must not turn spreads", listOf(0, 1), reader.visiblePages)
-        swipe(reader.width * .04f, reader.width * .8f)
+        swipe(reader.width * .10f, reader.width * .8f)
         assertEquals(listOf(2, 3), reader.visiblePages)
-        swipe(reader.width * .96f, reader.width * .2f)
+        swipe(reader.width * .90f, reader.width * .2f)
         assertEquals(listOf(0, 1), reader.visiblePages)
         reader.goToPage(4)
         assertEquals(listOf(4), reader.visiblePages)
