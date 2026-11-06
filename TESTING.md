@@ -1,5 +1,36 @@
 # Prüfstand · 13. Oktober 2026
 
+## Virtuelle Ordner und manuelles Vollbackup · 6. November 2026
+
+Die Bibliothek startet in der Ordnerebene. Unterordner, Pfadnavigation, Umbenennen,
+Verschieben und getrenntes Auflösen/Löschen sind verfügbar. Langes Drücken startet
+die PDF-Mehrfachauswahl. Die Zielauswahl kann neue Ordner erstellen. „Alle PDFs“,
+„Zuletzt“, „Lesezeichen“ und Namenssuche bleiben ordnerübergreifend. Neue Importe
+landen im aktuellen Ordner; erneut importierte identische PDFs behalten ihre Zuordnung.
+Bestehende Dokumente ohne Ordnerfeld bleiben unverändert auf der obersten Ebene.
+
+Backup und Wiederherstellung sind im Bibliotheksmenü und in den Einstellungen
+erreichbar. SAF-Zielauswahl, optionaler Passwortschutz, Fortschritt und Abbruch;
+Vollprüfung vor Wiederherstellung als zusätzliche Sammlung oder ausdrücklich
+bestätigtem Ersatz. Beim Ersatz wird ein vorheriges Backup angeboten. Dokumente,
+Ordner und gegebenenfalls der Einstellungsjournal werden gemeinsam veröffentlicht;
+bestehende PDF-Dateien werden dabei nie überschrieben. Neue Texte liegen in DE/EN/FR/ES vor.
+
+Neun neue JVM-Tests prüfen Ordnernamen, Pfade, Zyklen, fehlende Eltern, Dubletten und
+Tiefe sowie Klartext-/AES-GCM-Roundtrips, zufällige Salze/Nonces, falsches Passwort,
+Manipulation, fehlenden Abschluss, vertauschte Records, Größenbegrenzung und Abbruch.
+`LibraryStorageIntegrationTest` ergänzt isolierte Android-Prüfungen für virtuelle
+Ordner, Bulk-Moves, Deduplizierung, Originalschutz, Notizen und Byteidentität im
+Backup, beide Restore-Arten, Lesestände/Lesezeichen/Reflow/Drehung, Einstellungsjournal,
+leere Bibliotheken, manipulierte ZIP-Pfade/Prüfsummen/Versionen/Einstellungstypen,
+Abbruch nach der ersten installierten Datei und simulierten Metadaten-Commit-Fehler.
+Ein UI-Test ergänzt Ordnernavigation, Mehrfachauswahl, Verschieben und globale Suche.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 63 JVM-Tests und Android Lint.
+Die Android-Tests wurden kompiliert, aber nicht ausgeführt: ADB antwortet nicht auf
+die Geräteabfrage (Abbruch nach zehn Sekunden). Visuelle und echte SAF-Geräteprüfung
+sowie Android-Integrationstests bleiben offen. Format und Grenzen: `BACKUP_FORMAT.md`.
+
 ## PDF-Seitentipps und Vollbildsymbol · 6. November 2026
 
 Die Seitenübersicht steht oben neben der Ansichtsdrehung, Vollbild unten neben der

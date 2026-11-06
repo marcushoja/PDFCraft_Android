@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="folder_name">Nom du dossier</string>
+    <string name="folder_create">Nouveau dossier</string>
+    <string name="folder_rename">Renommer le dossier</string>
+    <string name="folder_move">Déplacer vers…</string>
+    <string name="folder_dissolve">Dissoudre le dossier</string>
+    <string name="folder_delete">Supprimer le dossier et son contenu</string>
+    <string name="folder_dissolve_warning">Les PDF et sous-dossiers seront déplacés dans le dossier parent. Rien ne sera supprimé. Renommez les dossiers homonymes au préalable.</string>
+    <string name="folder_delete_warning">Le dossier entier, ses sous-dossiers et leurs copies privées des PDF, notes et positions de lecture seront supprimés. Les originaux externes restent inchangés.</string>
+    <string name="folder_up">↑ Dossier parent</string>
+    <string name="folder_choose">Déplacer ici</string>
+    <string name="folder_all_pdfs">Tous les PDF</string>
+    <string name="folder_options">Options du dossier</string>
+    <string name="folder_selected">%1$d sélectionné(s)</string>
+    <string name="folder_select_all">Tous</string>
+    <string name="backup_title">Sauvegarde et restauration</string>
+    <string name="backup_description">Sauvegarde tous les PDF, dossiers, positions de lecture, signets, notes et annotations intégrées ainsi que les réglages. Choisissez un emplacement avec le sélecteur Android. Les caches et copies de lecture déchiffrées sont exclus.</string>
+    <string name="backup_no_previous">Aucune sauvegarde réussie enregistrée sur cet appareil.</string>
+    <string name="backup_last">Dernière sauvegarde réussie : %1$s</string>
+    <string name="backup_create">Créer une sauvegarde</string>
+    <string name="backup_restore">Restaurer une sauvegarde</string>
+    <string name="backup_password_hint">Facultatif : un mot de passe de 8 caractères minimum chiffre la sauvegarde. Laissez les deux champs vides pour une sauvegarde non chiffrée. Sans chiffrement, toute personne ayant le fichier peut lire son contenu. Un mot de passe oublié ne peut pas être récupéré.</string>
+    <string name="backup_password_restore_hint">Saisissez le mot de passe de la sauvegarde. Laissez vide si elle ne nécessite pas de mot de passe.</string>
+    <string name="backup_password">Mot de passe (facultatif)</string>
+    <string name="backup_password_repeat">Répéter le mot de passe</string>
+    <string name="backup_password_short">Utilisez au moins 8 caractères.</string>
+    <string name="backup_password_mismatch">Les mots de passe ne correspondent pas.</string>
+    <string name="backup_retry">Sélectionnez à nouveau la destination. Les mots de passe ne sont pas conservés après le redémarrage de cet écran.</string>
+    <string name="backup_preparing">Préparation… Les grandes bibliothèques nécessitent un espace temporaire libre.</string>
+    <string name="backup_cancelling">Annulation et nettoyage…</string>
+    <string name="backup_progress">PDF : %1$d / %2$d</string>
+    <string name="backup_failed">Échec de la sauvegarde ou de la restauration.</string>
+    <string name="backup_saved">Sauvegarde enregistrée.</string>
+    <string name="backup_checking">Vérification de la sauvegarde</string>
+    <string name="backup_summary">Vérifiés : %1$d PDF, %2$d dossiers.
+Création : %3$s
+
+Recommandé : importer comme nouvelle collection. Les PDF, positions et réglages existants restent inchangés. Le remplacement restaure aussi les réglages.</string>
+    <string name="backup_as_collection">Nouvelle collection</string>
+    <string name="backup_collection_name">Restauration %1$s</string>
+    <string name="backup_replace">Remplacer la bibliothèque</string>
+    <string name="backup_replace_warning">Remplacer toute la bibliothèque actuelle et ses réglages par cette sauvegarde ? Les PDF, dossiers et positions absents de la sauvegarde seront supprimés. Créez une sauvegarde préalable pour les conserver.</string>
+    <string name="backup_restored">Bibliothèque restaurée.</string>
+    <string name="backup_settings_pending">Bibliothèque restaurée. Certains réglages seront appliqués à nouveau au prochain démarrage.</string>
+</resources>

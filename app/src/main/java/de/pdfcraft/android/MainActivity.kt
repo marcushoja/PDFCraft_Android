@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
         // Preserve the original Activity-backed service context (especially PrintManager).
         // A replacement ConfigurationContext would bind system services to a non-Activity.
         super.attachBaseContext(newBase)
+        // Replay the restore journal before resolving the app-local language.
+        runCatching { DocumentStore(newBase).applyRestoredSettings() }
         val tag = LanguageContext.selected(newBase)
         if (tag != "system") applyOverrideConfiguration(Configuration(newBase.resources.configuration).apply {
             setLocales(android.os.LocaleList.forLanguageTags(tag))
@@ -45,6 +47,8 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("reader_settings", MODE_PRIVATE) }
     private lateinit var root: LinearLayout
     private var libraryView: LibraryView? = null
+    private var libraryFolderId: String? = null
+    private val backupUi = LibraryBackupUi(this, { store }) { folder -> libraryFolderId = folder; showLibrary() }
     private var reader: PdfReaderView? = null
     private var selectionMode:android.view.ActionMode?=null
     private var directSelection:Pair<Int,PdfTextSelection>?=null
@@ -104,10 +108,12 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if(selectionMode!=null) selectionMode?.finish()
-                else if (outlinePanel != null) closeOutline() else if (reader != null) showLibrary() else finish()
+                else if (outlinePanel != null) closeOutline() else if (reader != null) showLibrary()
+                else if (libraryView?.handleBack() != true) finish()
             }
         })
         store = DocumentStore(this)
+        backupUi.cleanAbandonedStages()
         File(cacheDir, "tools").listFiles()?.filter { it.name.startsWith("unlocked-") }?.forEach { it.delete() }
         thumbnails = ThumbnailLoader(this)
         PDFBoxResourceLoader.init(applicationContext)
@@ -115,6 +121,7 @@ class MainActivity : ComponentActivity() {
         tools = PdfTools(this)
         markup = PdfMarkup(this)
         dark = prefs.getBoolean("dark", false)
+        libraryFolderId = savedInstanceState?.getString("libraryFolder")
         showLibrary()
         val restoredId = savedInstanceState?.getString("document")
         if (restoredId != null && store.get(restoredId) != null) {
@@ -222,7 +229,8 @@ class MainActivity : ComponentActivity() {
         newRoot()
         root.addView(LibraryView(this, store, thumbnails, dark, { openDocument(it.id) }, { documentMenu(it) }, { pickPdf() }, { libraryMenu() }, {
             scanner.launch(Intent(this,ScanActivity::class.java))
-        }, { showSupport() }, onToggleDark = { toggleDark() }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
+        }, { showSupport() }, onToggleDark = { toggleDark() }, initialFolderId = libraryFolderId,
+            onFolderChanged = { libraryFolderId = it }).also { libraryView = it }, LinearLayout.LayoutParams(-1, -1))
         refreshUpdateNotice()
     }
 
@@ -234,8 +242,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun libraryMenu() {
-        ReaderActionSheet(this, dark, ReaderMenus.library(getString(R.string.update_check))) { action ->
-            if (action == "updates") checkUpdatesManually() else showAbout()
+        ReaderActionSheet(this, dark, ReaderMenus.library(getString(R.string.update_check), getString(R.string.backup_title), getString(R.string.ui_settings_short))) { action ->
+            when (action) {
+                "updates" -> checkUpdatesManually()
+                "backup" -> backupUi.show()
+                "settings" -> settings()
+                else -> showAbout()
+            }
         }.show()
     }
 
@@ -296,10 +309,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun documentMenu(doc: PdfDocument) {
-        LocalizedDialogBuilder(this).setRawTitle(doc.name).setItems(arrayOf("Öffnen", "Umbenennen", "Teilen", "Lokale Kopie löschen")) { _, which ->
+        LocalizedDialogBuilder(this).setRawTitle(doc.name).setItems(arrayOf(l("Öffnen"), l("Umbenennen"), l("Teilen"), getString(R.string.folder_move), l("Lokale Kopie löschen"))) { _, which ->
             if (which == 0) openDocument(doc.id)
             else if (which == 1) textInput("Dokument umbenennen", doc.name, rawHint = true,initialValue=doc.name) { name -> store.rename(doc.id, name); showLibrary() }
             else if (which == 2) share(store.file(doc),displayName=doc.name)
+            else if (which == 3) FolderDialogs(this, store) { showLibrary() }.moveDocuments(setOf(doc.id), doc.folderId)
             else LocalizedDialogBuilder(this).setTitle("Lokale Kopie löschen?")
                 .setMessage("Die gespeicherte PDF-Kopie, Lesefortschritt und Lesezeichen werden gelöscht. Deine Originaldatei bleibt unverändert.")
                 .setNegativeButton("Abbrechen", null).setPositiveButton("Lokale Kopie löschen") { _, _ -> thumbnails.releaseDocument(store.file(doc));store.remove(doc.id); showLibrary() }.show()
@@ -317,11 +331,12 @@ class MainActivity : ComponentActivity() {
         importing = true
         val token = ++importGeneration
         val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+        val destinationFolder = libraryFolderId
         showLibrary(); newRoot()
         val progress = PdfLoadingView(this, dark, l("PDF übernehmen")) { cancelled.set(true); importGeneration++; importing = false; showLibrary() }
         root.addView(progress, LinearLayout.LayoutParams(-1,-1))
         io.execute {
-            val result = runCatching { store.importDocument(uri, { copied, total -> handler.post { if (token == importGeneration && !isDestroyed) progress.updateCopy(copied,total) } }, { cancelled.get() }) }
+            val result = runCatching { store.importDocument(uri, { copied, total -> handler.post { if (token == importGeneration && !isDestroyed) progress.updateCopy(copied,total) } }, { cancelled.get() }, destinationFolder) }
             if(deleteScanSource && result.isSuccess) {
                 runCatching { contentResolver.delete(uri,null,null) }
                 scanDraft?.let { token -> runCatching { ScanActivity.clearImportedDraft(this,token) } }
@@ -589,6 +604,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun settings() {
+        var settingsDialog: AlertDialog? = null
         val content = column().apply { setPadding(dp(24), dp(8), dp(24), dp(8)) }
         content.addView(text("Sprache",14f,muted,true))
         val languageTags = listOf("system","de","en","fr","es")
@@ -638,8 +654,9 @@ class MainActivity : ComponentActivity() {
         }
         content.addView(font)
         content.addView(text("Nachtansicht verändert auch Bildfarben.\nDokumente bleiben unverändert und auf diesem Gerät.", 12f, muted))
+        content.addView(button(getString(R.string.backup_title)) { settingsDialog?.dismiss(); showLibrary(); backupUi.show() })
         val scroll = ScrollView(this).apply { addView(content) }
-        LocalizedDialogBuilder(this).setTitle("Ansicht & Lesekomfort").setView(scroll)
+        settingsDialog = LocalizedDialogBuilder(this).setTitle("Ansicht & Lesekomfort").setView(scroll)
             .setNegativeButton("Abbrechen", null).setPositiveButton("Übernehmen") { _, _ ->
                 persistPosition()
                 val selectedLanguage = languageTags[language.selectedItemPosition]
@@ -1100,6 +1117,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() { persistPosition(); super.onPause() }
-    override fun onSaveInstanceState(outState: Bundle) { persistPosition(); outState.putString("document", documentId); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { persistPosition(); importGeneration++; searchProgress?.dismiss(); pageOverviewDialog?.dismiss(); supportDialog?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); discardUnlockedCopy(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
+    override fun onSaveInstanceState(outState: Bundle) { persistPosition(); outState.putString("document", documentId); outState.putString("libraryFolder", libraryFolderId); super.onSaveInstanceState(outState) }
+    override fun onDestroy() { backupUi.close(); persistPosition(); importGeneration++; searchProgress?.dismiss(); pageOverviewDialog?.dismiss(); supportDialog?.dismiss(); handler.removeCallbacksAndMessages(null); reader?.close(); discardUnlockedCopy(); thumbnails.close(); textService.close(); io.shutdownNow(); super.onDestroy() }
 }

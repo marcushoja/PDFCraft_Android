@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="folder_name">Nombre de carpeta</string>
+    <string name="folder_create">Nueva carpeta</string>
+    <string name="folder_rename">Renombrar carpeta</string>
+    <string name="folder_move">Mover a…</string>
+    <string name="folder_dissolve">Disolver carpeta</string>
+    <string name="folder_delete">Eliminar carpeta y contenido</string>
+    <string name="folder_dissolve_warning">Los PDF y las subcarpetas se moverán a la carpeta superior. No se eliminará nada. Renombra primero las carpetas con nombres duplicados.</string>
+    <string name="folder_delete_warning">Se eliminarán la carpeta, todas sus subcarpetas y sus copias privadas de PDF, notas y posiciones de lectura. Los originales externos no cambiarán.</string>
+    <string name="folder_up">↑ Carpeta superior</string>
+    <string name="folder_choose">Mover aquí</string>
+    <string name="folder_all_pdfs">Todos los PDF</string>
+    <string name="folder_options">Opciones de carpeta</string>
+    <string name="folder_selected">%1$d seleccionados</string>
+    <string name="folder_select_all">Todos</string>
+    <string name="backup_title">Copia de seguridad y restauración</string>
+    <string name="backup_description">Guarda todos los PDF, carpetas, posiciones de lectura, marcadores, notas y anotaciones integradas, y ajustes. Elige un destino con el selector de Android. Se excluyen las cachés y las copias descifradas para lectura.</string>
+    <string name="backup_no_previous">No hay copias de seguridad completadas en este dispositivo.</string>
+    <string name="backup_last">Última copia completada: %1$s</string>
+    <string name="backup_create">Crear copia de seguridad</string>
+    <string name="backup_restore">Restaurar copia</string>
+    <string name="backup_password_hint">Opcional: una contraseña de al menos 8 caracteres cifra la copia. Deja ambos campos vacíos para no cifrarla. Sin cifrado, cualquiera que tenga el archivo podrá leer su contenido. No se puede recuperar una contraseña olvidada.</string>
+    <string name="backup_password_restore_hint">Introduce la contraseña de la copia. Déjala vacía si la copia no está cifrada.</string>
+    <string name="backup_password">Contraseña (opcional)</string>
+    <string name="backup_password_repeat">Repetir contraseña</string>
+    <string name="backup_password_short">Utiliza al menos 8 caracteres.</string>
+    <string name="backup_password_mismatch">Las contraseñas no coinciden.</string>
+    <string name="backup_retry">Selecciona de nuevo el destino. Las contraseñas no se conservan al reiniciar esta pantalla.</string>
+    <string name="backup_preparing">Preparando… Las bibliotecas grandes necesitan espacio temporal libre.</string>
+    <string name="backup_cancelling">Cancelando y limpiando…</string>
+    <string name="backup_progress">PDF: %1$d / %2$d</string>
+    <string name="backup_failed">Ha fallado la copia o la restauración.</string>
+    <string name="backup_saved">Copia guardada correctamente.</string>
+    <string name="backup_checking">Comprobando copia</string>
+    <string name="backup_summary">Verificados: %1$d PDF, %2$d carpetas.
+Creación: %3$s
+
+Recomendado: importar como nueva colección. Los PDF, posiciones y ajustes existentes no cambiarán. Reemplazar también restaura los ajustes.</string>
+    <string name="backup_as_collection">Nueva colección</string>
+    <string name="backup_collection_name">Restaurado %1$s</string>
+    <string name="backup_replace">Reemplazar biblioteca</string>
+    <string name="backup_replace_warning">¿Reemplazar toda la biblioteca actual y sus ajustes con esta copia? Se eliminarán los PDF, carpetas y posiciones que no estén en la copia. Crea antes una copia de la biblioteca actual si quieres conservarla.</string>
+    <string name="backup_restored">Biblioteca restaurada correctamente.</string>
+    <string name="backup_settings_pending">Biblioteca restaurada. Algunos ajustes se volverán a aplicar al reiniciar.</string>
+</resources>

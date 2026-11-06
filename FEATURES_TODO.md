@@ -19,7 +19,9 @@ Stand: Zen-Reader-Version. Dies ist eine eigenständige Android-App, **keine vol
 
 ## Bibliothek
 
-- [ ] Ordneransicht und optionale PDF-Erkennung auf Gerätespeicher/SD-Karten; bisher private importierte Kopien.
+- [x] Virtuelle Ordner mit Unterordnern, Umbenennen, Verschieben, Mehrfachauswahl und globaler Suche; PDFs bleiben private importierte Kopien.
+- [x] Manuelles Vollbackup samt optionalem Passwortschutz sowie geprüfte Wiederherstellung als neue Sammlung oder Bibliotheksersatz.
+- [ ] Optionale PDF-Erkennung auf Gerätespeicher/SD-Karten und automatische Backup-Zeitpläne.
 - [ ] Manuelle Statusgruppen: ungelesen, in Arbeit, pausiert, beendet und abgebrochen.
 - [ ] Sortierauswahl, Listen-/Rasterumschaltung und Sammlungen/Tags.
 - [ ] Sicherer Import von Online-PDFs über ausdrücklich freigegebene Links.

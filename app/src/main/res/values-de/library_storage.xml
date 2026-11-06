@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="folder_name">Ordnername</string>
+    <string name="folder_create">Neuer Ordner</string>
+    <string name="folder_rename">Ordner umbenennen</string>
+    <string name="folder_move">Verschieben nach…</string>
+    <string name="folder_dissolve">Ordner auflösen</string>
+    <string name="folder_delete">Ordner samt Inhalt löschen</string>
+    <string name="folder_dissolve_warning">PDFs und Unterordner werden in den übergeordneten Ordner verschoben. Nichts wird gelöscht. Gleichnamige Ordner müssen vorher umbenannt werden.</string>
+    <string name="folder_delete_warning">Der gesamte Ordner, alle Unterordner und ihre privaten PDF-Kopien, Notizen und Lesestände werden gelöscht. Externe Originale bleiben unverändert.</string>
+    <string name="folder_up">↑ Übergeordneter Ordner</string>
+    <string name="folder_choose">Hierher verschieben</string>
+    <string name="folder_all_pdfs">Alle PDFs</string>
+    <string name="folder_options">Ordneroptionen</string>
+    <string name="folder_selected">%1$d ausgewählt</string>
+    <string name="folder_select_all">Alle</string>
+    <string name="backup_title">Backup &amp; Wiederherstellung</string>
+    <string name="backup_description">Sichert alle PDFs, Ordner, Lesestände, Lesezeichen, eingebetteten Notizen und Markierungen sowie App-Einstellungen. Ziel über den Android-Dateidialog wählen. Caches und entschlüsselte Ansichtskopien werden nicht gesichert.</string>
+    <string name="backup_no_previous">Noch kein erfolgreiches Backup auf diesem Gerät vermerkt.</string>
+    <string name="backup_last">Letztes erfolgreiches Backup: %1$s</string>
+    <string name="backup_create">Backup erstellen</string>
+    <string name="backup_restore">Backup wiederherstellen</string>
+    <string name="backup_password_hint">Optional: Mit einem Passwort ab 8 Zeichen wird das Backup verschlüsselt. Für ein unverschlüsseltes Backup beide Felder leer lassen. Ohne Verschlüsselung kann jeder mit Zugriff auf die Datei deren Inhalt lesen. Ein vergessenes Passwort kann nicht wiederhergestellt werden.</string>
+    <string name="backup_password_restore_hint">Backup-Passwort eingeben. Bei einem unverschlüsselten Backup leer lassen.</string>
+    <string name="backup_password">Passwort (optional)</string>
+    <string name="backup_password_repeat">Passwort wiederholen</string>
+    <string name="backup_password_short">Bitte mindestens 8 Zeichen verwenden.</string>
+    <string name="backup_password_mismatch">Die Passwörter stimmen nicht überein.</string>
+    <string name="backup_retry">Bitte das Backup-Ziel erneut auswählen. Passwörter werden nach einem Neustart der Ansicht nicht gespeichert.</string>
+    <string name="backup_preparing">Wird vorbereitet… Große Bibliotheken benötigen freien Zwischenspeicher.</string>
+    <string name="backup_cancelling">Wird abgebrochen und aufgeräumt…</string>
+    <string name="backup_progress">PDFs: %1$d / %2$d</string>
+    <string name="backup_failed">Der Backup-Vorgang ist fehlgeschlagen.</string>
+    <string name="backup_saved">Backup erfolgreich gespeichert.</string>
+    <string name="backup_checking">Backup prüfen</string>
+    <string name="backup_summary">Geprüft: %1$d PDFs, %2$d Ordner.
+Erstellt: %3$s
+
+Empfohlen: als neue Sammlung importieren. Bestehende PDFs, Lesestände und Einstellungen bleiben unverändert. Beim Ersetzen werden auch die App-Einstellungen wiederhergestellt.</string>
+    <string name="backup_as_collection">Neue Sammlung</string>
+    <string name="backup_collection_name">Wiederhergestellt %1$s</string>
+    <string name="backup_replace">Bibliothek ersetzen</string>
+    <string name="backup_replace_warning">Die gesamte aktuelle Bibliothek samt App-Einstellungen durch dieses Backup ersetzen? Aktuelle PDFs, Ordner und Lesestände, die nicht im Backup enthalten sind, werden entfernt. Erstelle vorher ein Backup der aktuellen Bibliothek, wenn du sie behalten möchtest.</string>
+    <string name="backup_restored">Bibliothek erfolgreich wiederhergestellt.</string>
+    <string name="backup_settings_pending">Bibliothek wiederhergestellt. Einige Einstellungen konnten noch nicht übernommen werden; dies wird beim Neustart erneut versucht.</string>
+</resources>

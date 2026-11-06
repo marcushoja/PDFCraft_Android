@@ -1,7 +1,9 @@
 package de.pdfcraft.android
 
 internal object ReaderMenus {
-    fun library(updateLabel: String) = listOf(
+    fun library(updateLabel: String, backupLabel: String = "Backup & Wiederherstellung", settingsLabel: String = "Einstellungen") = listOf(
+        ReaderAction("backup", backupLabel, "scan_export"),
+        ReaderAction("settings", settingsLabel, "settings"),
         ReaderAction("updates", updateLabel, "reload"),
         ReaderAction("about", "Über PDFPauli", "info"),
     )

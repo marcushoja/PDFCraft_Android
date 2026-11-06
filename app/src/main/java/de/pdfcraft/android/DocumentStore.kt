@@ -26,13 +26,90 @@ data class PdfDocument(
     val lastView: String = "pdf",
     val contentHash: String = id,
     val viewRotation: Int = 0,
+    val folderId: String? = null,
 )
 
 /** Imports must run on a worker thread. No persistent URI permissions are needed. */
 class DocumentStore(context: Context) {
     private val context = context.applicationContext
     private val preferences = this.context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-    private val directory = File(this.context.filesDir, "pdf_documents")
+    internal val directory = File(this.context.filesDir, "pdf_documents")
+
+    fun folders(): List<LibraryFolder> = synchronized(LOCK) { readFolders() }
+
+    fun createFolder(name: String, parentId: String? = null): LibraryFolder = synchronized(LOCK) {
+        val folder = LibraryFolder(LibraryFolders.newId(), LibraryFolders.cleanName(name), parentId)
+        writeLibrary(readDocuments(), readFolders() + folder)
+        folder
+    }
+
+    fun editFolder(id: String, name: String, parentId: String?) = synchronized(LOCK) {
+        val folders = readFolders()
+        require(folders.any { it.id == id }) { "Ordner nicht gefunden." }
+        writeLibrary(readDocuments(), folders.map { if (it.id == id) it.copy(name = LibraryFolders.cleanName(name), parentId = parentId) else it })
+    }
+
+    fun moveDocuments(ids: Set<String>, folderId: String?) = synchronized(LOCK) {
+        val folders = readFolders()
+        require(folderId == null || folders.any { it.id == folderId }) { "Ordner nicht gefunden." }
+        val documents = readDocuments()
+        require(ids.all { id -> documents.any { it.id == id } }) { "Dokument nicht gefunden." }
+        writeLibrary(documents.map { if (it.id in ids) it.copy(folderId = folderId) else it }, folders)
+    }
+
+    /** Dissolve promotes direct children; destructive deletion removes the entire subtree. */
+    fun deleteFolder(id: String, deleteContents: Boolean) = synchronized(LOCK) {
+        val folders = readFolders()
+        val folder = folders.firstOrNull { it.id == id } ?: return@synchronized
+        val subtree = LibraryFolders.descendants(folders, id)
+        val documents = readDocuments()
+        val removed = if (deleteContents) documents.filter { it.folderId in subtree } else emptyList()
+        val updated = if (deleteContents) documents - removed.toSet() else documents.map {
+            if (it.folderId == id) it.copy(folderId = folder.parentId) else it
+        }
+        val remaining = if (deleteContents) folders.filterNot { it.id in subtree } else folders.filterNot { it.id == id }.map {
+            if (it.parentId == id) it.copy(parentId = folder.parentId) else it
+        }
+        // Validation also prevents duplicate sibling names when dissolving a folder.
+        writeLibrary(updated, remaining)
+        removed.forEach { file(it).delete() } // Only unreferenced private copies, never external files.
+    }
+
+    internal fun <T> locked(action: () -> T): T = synchronized(LOCK) { action() }
+
+    internal fun exportMetadata(): JSONObject = synchronized(LOCK) {
+        JSONObject().put("documents", encodeDocuments(readDocuments())).put("folders", encodeFolders(readFolders()))
+    }
+
+    internal fun decodeMetadata(json: JSONObject): Pair<List<PdfDocument>, List<LibraryFolder>> {
+        val documents = readDocuments(json.getJSONArray("documents").toString(), strict = true)
+        val folders = decodeFolders(json.getJSONArray("folders"))
+        validateLibrary(documents, folders)
+        return documents to folders
+    }
+
+    internal fun installLibrary(documents: List<PdfDocument>, folders: List<LibraryFolder>, settings: JSONObject? = null) = synchronized(LOCK) {
+        writeLibrary(documents, folders, settings)
+    }
+
+    /** Settings are journaled in the same commit as the restored library and replayed after restart. */
+    internal fun applyRestoredSettings() = synchronized(LOCK) {
+        val raw = preferences.getString("pendingSettings", null) ?: return@synchronized
+        val settings = JSONObject(raw)
+        for (group in LibraryBackup.SETTING_GROUPS) {
+            val values = settings.optJSONObject(group) ?: continue
+            val editor = context.getSharedPreferences(group, Context.MODE_PRIVATE).edit().clear()
+            for (key in values.keys()) when (val value = values.get(key)) {
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Number -> editor.putFloat(key, value.toFloat())
+                is String -> editor.putString(key, value)
+            }
+            if (!editor.commit()) throw IOException("Die Einstellungen konnten nicht wiederhergestellt werden.")
+        }
+        if (!preferences.edit().remove("pendingSettings").commit()) throw IOException("Die Einstellungen konnten nicht abgeschlossen werden.")
+    }
 
     // Shared across instances so read/modify/write operations cannot lose updates.
     fun list(): List<PdfDocument> = synchronized(LOCK) {
@@ -55,7 +132,7 @@ class DocumentStore(context: Context) {
     }
 
     /** Copies at most 500 MiB, checks the header, and atomically renames the copy. */
-    fun importDocument(uri: Uri, onProgress: ((copied: Long, total: Long) -> Unit)? = null, isCancelled: () -> Boolean = { false }): PdfDocument {
+    fun importDocument(uri: Uri, onProgress: ((copied: Long, total: Long) -> Unit)? = null, isCancelled: () -> Boolean = { false }, folderId: String? = null): PdfDocument {
         var temporary: File? = null
         try {
             if (!directory.isDirectory && !directory.mkdirs() && !directory.isDirectory) {
@@ -130,6 +207,7 @@ class DocumentStore(context: Context) {
                     zoom = 1f,
                     bookmarks = emptyList(),
                     contentHash = hash,
+                    folderId = folderId?.takeIf { target -> readFolders().any { it.id == target } },
                 )
                 val destination = file(document)
                 val created = !destination.exists()
@@ -276,10 +354,11 @@ class DocumentStore(context: Context) {
             .filterNot { it.isISOControl() }.trim().take(256).ifEmpty { "Dokument.pdf" }
     }
 
-    private fun readDocuments(): List<PdfDocument> {
+    private fun readDocuments(raw: String = preferences.getString(DOCUMENTS, "[]") ?: "[]", strict: Boolean = false): List<PdfDocument> {
         val array = try {
-            JSONArray(preferences.getString(DOCUMENTS, "[]") ?: "[]")
+            JSONArray(raw)
         } catch (error: Exception) {
+            if (strict) throw IOException("Ungültige Dokumentliste.", error)
             Log.w(TAG, "Dokumentliste konnte nicht gelesen werden.", error)
             return emptyList()
         }
@@ -289,7 +368,16 @@ class DocumentStore(context: Context) {
                 val json = array.getJSONObject(index)
                 val id = json.getString("id")
                 val fileName = json.getString("fileName")
-                if (!ID_PATTERN.matches(id) || fileName != "$id.pdf") continue
+                if (strict) {
+                    require(json.getString("name").length in 1..256) { "Ungültiger Dokumentname." }
+                    require(json.getInt("pageCount") in 0..1_000_000 && json.getInt("page") >= 0) { "Ungültige Seitenzahl." }
+                    require(json.getDouble("offset").isFinite() && json.getDouble("zoom").isFinite()) { "Ungültiger Lesestand." }
+                    require(json.getJSONArray("bookmarks").length() <= 1_000_000) { "Zu viele Lesezeichen." }
+                }
+                if (!ID_PATTERN.matches(id) || fileName != "$id.pdf") {
+                    if (strict) throw IOException("Ungültiger Dokumentpfad.")
+                    continue
+                }
                 val progress = ReadingProgress.sanitize(
                     json.optInt("page", 0),
                     json.optDouble("offset", 0.0).toFloat(),
@@ -310,16 +398,23 @@ class DocumentStore(context: Context) {
                         if (json.optString("lastView") == "reflow") "reflow" else "pdf",
                         json.optString("contentHash", id).takeIf { ID_PATTERN.matches(it) } ?: id,
                         PdfViewRotation.normalize(json.optInt("viewRotation", 0)),
+                        if (json.isNull("folderId")) null else json.optString("folderId").takeIf { it.isNotEmpty() },
                     ),
                 )
             } catch (error: Exception) {
+                if (strict) throw IOException("Ungültiger Dokumenteintrag.", error)
                 Log.w(TAG, "Ungültiger Dokumenteintrag wurde übersprungen.", error)
             }
         }
+        if (strict && documents.map { it.id }.distinct().size != documents.size) throw IOException("Doppelte Dokument-ID.")
         return documents.distinctBy { it.id }
     }
 
     private fun writeDocuments(documents: List<PdfDocument>) {
+        writeLibrary(documents, readFolders())
+    }
+
+    private fun encodeDocuments(documents: List<PdfDocument>): JSONArray {
         val array = JSONArray()
         documents.forEach { document ->
             array.put(JSONObject().apply {
@@ -337,14 +432,45 @@ class DocumentStore(context: Context) {
                 put("lastView", document.lastView)
                 put("contentHash", document.contentHash)
                 put("viewRotation", PdfViewRotation.normalize(document.viewRotation))
+                put("folderId", document.folderId ?: JSONObject.NULL)
             })
         }
-        if (!preferences.edit().putString(DOCUMENTS, array.toString()).commit()) {
-            throw IOException("Die Dokumentdaten konnten nicht gespeichert werden.")
+        return array
+    }
+
+    private fun readFolders(): List<LibraryFolder> = decodeFolders(JSONArray(preferences.getString("folders", "[]") ?: "[]"))
+
+    private fun decodeFolders(array: JSONArray): List<LibraryFolder> = (0 until array.length()).map { index ->
+        val json = array.getJSONObject(index)
+        LibraryFolder(json.getString("id"), json.getString("name"), if (json.isNull("parentId")) null else json.getString("parentId"))
+    }.also { LibraryFolders.validate(it) }
+
+    private fun encodeFolders(folders: List<LibraryFolder>) = JSONArray().apply {
+        folders.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("parentId", it.parentId ?: JSONObject.NULL)) }
+    }
+
+    private fun validateLibrary(documents: List<PdfDocument>, folders: List<LibraryFolder>) {
+        LibraryFolders.validate(folders)
+        val ids = folders.map { it.id }.toSet()
+        require(documents.all { it.folderId == null || it.folderId in ids }) { "Dokument verweist auf einen fehlenden Ordner." }
+    }
+
+    private fun writeLibrary(documents: List<PdfDocument>, folders: List<LibraryFolder>, settings: JSONObject? = null) {
+        validateLibrary(documents, folders)
+        val oldDocuments = preferences.getString(DOCUMENTS, "[]")
+        val oldFolders = preferences.getString("folders", "[]")
+        val oldSettings = preferences.getString("pendingSettings", null)
+        val editor = preferences.edit().putString(DOCUMENTS, encodeDocuments(documents).toString())
+            .putString("folders", encodeFolders(folders).toString())
+        if (settings != null) editor.putString("pendingSettings", settings.toString())
+        if (!editor.commit()) {
+            preferences.edit().putString(DOCUMENTS, oldDocuments).putString("folders", oldFolders)
+                .putString("pendingSettings", oldSettings).commit()
+            throw IOException("Die Bibliotheksdaten konnten nicht gespeichert werden.")
         }
     }
 
-    private companion object {
+    internal companion object {
         val LOCK = Any()
         const val TAG = "DocumentStore"
         const val PREFERENCES = "pdfcraft_documents"

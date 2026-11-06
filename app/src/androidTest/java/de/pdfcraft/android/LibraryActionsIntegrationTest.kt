@@ -40,7 +40,8 @@ class LibraryActionsIntegrationTest {
             i.runOnMainSync { menu.invoke(activity,doc) };i.waitForIdleSync()
             i.runOnMainSync {
                 val list=windows().filterIsInstance<ListView>().single()
-                assertEquals(UiText.t(activity,"Lokale Kopie löschen"),list.adapter.getItem(3).toString())
+                assertEquals(activity.getString(R.string.folder_move),list.adapter.getItem(3).toString())
+                assertEquals(UiText.t(activity,"Lokale Kopie löschen"),list.adapter.getItem(4).toString())
                 list.performItemClick(null,1,list.adapter.getItemId(1))
             };i.waitForIdleSync()
             i.runOnMainSync {
@@ -55,7 +56,7 @@ class LibraryActionsIntegrationTest {
             i.runOnMainSync { menu.invoke(activity,store.get(doc.id)) };i.waitForIdleSync()
             i.runOnMainSync {
                 val list=windows().filterIsInstance<ListView>().single()
-                list.performItemClick(null,3,list.adapter.getItemId(3))
+                list.performItemClick(null,4,list.adapter.getItemId(4))
             };i.waitForIdleSync()
             i.runOnMainSync {
                 assertTrue(windows().filterIsInstance<TextView>().any {
@@ -67,7 +68,7 @@ class LibraryActionsIntegrationTest {
             i.runOnMainSync { menu.invoke(activity,store.get(doc.id)) };i.waitForIdleSync()
             i.runOnMainSync {
                 val list=windows().filterIsInstance<ListView>().single()
-                list.performItemClick(null,3,list.adapter.getItemId(3))
+                list.performItemClick(null,4,list.adapter.getItemId(4))
             };i.waitForIdleSync()
             i.runOnMainSync { windows().single { it.id==android.R.id.button1 }.performClick() };i.waitForIdleSync()
             assertFalse(copy.exists());assertNull(store.get(doc.id))

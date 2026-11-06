@@ -18,8 +18,8 @@ class ReaderMenusTest {
         }
     }
 
-    @Test fun libraryOnlyOffersUpdatesAndAbout() {
+    @Test fun libraryOffersBackupSettingsUpdatesAndAbout() {
         val actions = ReaderMenus.library("Auf Updates prüfen")
-        assertEquals(listOf("updates", "about"), actions.map { it.id })
+        assertEquals(listOf("backup", "settings", "updates", "about"), actions.map { it.id })
     }
 }
