@@ -1,5 +1,21 @@
 # Prüfstand · 13. Oktober 2026
 
+## PDF-Seitentipps und Vollbildsymbol · 6. November 2026
+
+Die Seitenübersicht steht oben neben der Ansichtsdrehung, Vollbild unten neben der
+Seitenzahl. Ein bestätigter Einzeltipp in die linke PDF-Hälfte blättert zurück,
+in die rechte Hälfte vorwärts, auch im Vollbild. Dabei wird dieselbe Navigation
+wie bei den Pfeiltasten verwendet. Vollbild wird ausschließlich über die Symbole
+geöffnet bzw. verlassen; Doppeltipp-Zoom und Textauswahl bleiben unverändert.
+
+`ReaderTapNavigationIntegrationTest` prüft die vertauschten Symbolpositionen,
+beide Tipprichtungen, Dokumentgrenzen und unveränderte Leisten-Sichtbarkeit im
+Normal- und Vollbildmodus sowie das Verlassen über das Vollbildsymbol.
+
+Lokal erfolgreich: Debug-APK, Test-APK, JVM-Tests und Android Lint mit dem Linux-SDK.
+Der Android-Test wurde kompiliert, aber nicht ausgeführt: Die ADB-Geräteabfrage
+antwortet nicht und wurde nach zehn Sekunden abgebrochen.
+
 ## PDFPauli und Einhorn-Türkis · 5. November 2026
 
 App-Label, Bibliothek, Über-Dialog, Unterstützung und Update-Texte heißen in allen

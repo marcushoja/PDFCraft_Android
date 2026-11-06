@@ -349,7 +349,7 @@ class MainActivity : ComponentActivity() {
         top.addView(text(doc.name, 16f, ink, true, translate = false).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(iconButton("rotate", getString(R.string.reader_rotate_view)) { rotateReaderView() }
             .apply { this.id = R.id.reader_rotate_view })
-        top.addView(iconButton("fullscreen", "Vollbild") { toggleChrome() })
+        top.addView(iconButton("pages", "Seiten") { pagesDialog(false) })
         top.addView(iconButton("menu", "Leseoptionen") { readerMenu() }.apply { this.id = R.id.menu_button })
         topBar = top; root.addView(top)
         val view = PdfReaderView(this)
@@ -431,7 +431,7 @@ class MainActivity : ComponentActivity() {
             textDirection=View.TEXT_DIRECTION_LTR;layoutDirection=View.LAYOUT_DIRECTION_LTR
         }
         nav.addView(pageLabel, LinearLayout.LayoutParams(0, dp(48), 1f))
-        nav.addView(iconButton("pages", "Seiten") { pagesDialog(false) })
+        nav.addView(iconButton("fullscreen", "Vollbild") { toggleChrome() })
         nav.addView(iconButton("next", "Nächste Seite") { if (reflow) view.goToPage(view.currentPage + 1) else view.navigatePages(true) }.apply { this.id=R.id.next_page_button })
         nav.id=R.id.page_navigation
         for (index in 0 until nav.childCount) nav.getChildAt(index).background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22496650), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT), android.graphics.drawable.ColorDrawable(Color.WHITE))
@@ -450,7 +450,7 @@ class MainActivity : ComponentActivity() {
             if (reflow && textPage != page) loadReflow(0f)
             updateReaderChrome(); handler.removeCallbacks(savePosition); handler.postDelayed(savePosition, 350)
         }
-        view.onTap = { toggleChrome() }
+        view.onTap = { forward -> view.navigatePages(forward) }
         view.onError = { message -> if (documentId == doc.id) { loadingView?.visibility = View.GONE; handleOpenError(doc, message) } }
         view.open(store.file(doc), doc.page, doc.offset, doc.zoom, doc.viewRotation)
         applyReaderSettings()

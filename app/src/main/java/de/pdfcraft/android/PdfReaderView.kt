@@ -49,7 +49,8 @@ class PdfReaderView(context: Context) : View(context) {
     var onLoadProgress: ((loaded: Int, total: Int) -> Unit)? = null
     var onFirstPageRendered: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
-    var onTap: (() -> Unit)? = null
+    var onTap: ((forward: Boolean) -> Unit)? = null
+    private var tapForward = true
     var onSelectionChanged: ((page: Int, selection: PdfTextSelection?) -> Unit)? = null
     /** Decrypted viewing copies must retain the original document's extraction permission. */
     var textSelectionAllowed:Boolean=true
@@ -271,6 +272,7 @@ class PdfReaderView(context: Context) : View(context) {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if (consumeSelectionTap) { consumeSelectionTap = false; return true }
                 if (gestureAxis == 1) return true
+                tapForward = e.x >= width / 2f
                 performClick()
                 return true
             }
@@ -1321,7 +1323,9 @@ class PdfReaderView(context: Context) : View(context) {
 
     override fun performClick(): Boolean {
         super.performClick()
-        onTap?.invoke()
+        val forward = tapForward
+        tapForward = true // Accessibility clicks have no coordinate and advance by default.
+        onTap?.invoke(forward)
         return true
     }
 
