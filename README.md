@@ -26,6 +26,7 @@ The library hamburger menu offers **Backup & restore**, **Settings**, **Check fo
 
 - Private local library with cover thumbnails, reading progress and resume actions.
 - Nested virtual folders with breadcrumb navigation, creation, renaming and moving. Folder operations do not move or duplicate PDF bytes. **Library** shows folders and PDFs at the current level; **All PDFs**, **Recent**, **Bookmarks** and name searches work across folders. Search results include the folder path.
+- Folders appear first in the same scrolling list/grid as PDFs, with matching row/tile sizes, a large folder icon and direct PDF/subfolder counts. Counts exclude nested descendants; folder options stay in the same position as PDF options.
 - **Move to…** in document options, or hold a PDF to select several and move them together. The destination browser can create folders. Folder options distinguish dissolving a folder (keep contents) from deleting its entire subtree after confirmation. External originals are never changed.
 - Icon buttons switch between grid and compact list views and sort the library by name or date added, ascending or descending. List rows use small covers with a separate options button. View and sorting preferences are remembered.
 - Import PDFs through Android's file picker, **Open with** and **Share**. Originals remain unchanged.

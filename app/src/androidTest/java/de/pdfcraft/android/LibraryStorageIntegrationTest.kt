@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import android.widget.EditText
 import android.widget.GridView
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import androidx.test.filters.SdkSuppress
@@ -238,8 +240,9 @@ class LibraryStorageIntegrationTest {
                 view = LibraryView(host, store, thumbnails, false, { fail("Selection must not open a PDF") }, {}, {}, {})
                 host.setContentView(view)
                 val grid = descendants(view).filterIsInstance<GridView>().single()
-                assertEquals(2, grid.adapter.count)
-                val first = grid.adapter.getView(0, null, grid)
+                assertEquals(3, grid.adapter.count)
+                assertEquals(folder, grid.adapter.getItem(0))
+                val first = grid.adapter.getView(1, null, grid)
                 assertTrue(first.performLongClick())
                 descendants(view).single { it.contentDescription == host.getString(R.string.folder_select_all) }.performClick()
                 descendants(view).single { it.contentDescription == host.getString(R.string.folder_move) }.performClick()
@@ -257,12 +260,12 @@ class LibraryStorageIntegrationTest {
             instrumentation.waitForIdleSync()
             instrumentation.runOnMainSync {
                 val grid = descendants(view).filterIsInstance<GridView>().single()
-                assertEquals(0, grid.adapter.count)
+                assertEquals(1, grid.adapter.count)
                 assertTrue(store.list().all { it.folderId == folder.id })
                 // User-authored folder names stay opaque, including names that are also UI labels.
-                descendants(view).single { it.contentDescription == folder.name }.performClick()
+                grid.adapter.getView(0, null, grid).performClick()
                 assertEquals(2, grid.adapter.count)
-                assertTrue(view.handleBack()); assertEquals(0, grid.adapter.count)
+                assertTrue(view.handleBack()); assertEquals(1, grid.adapter.count)
                 descendants(view).filterIsInstance<EditText>().single().setText("needle")
                 assertEquals(1, grid.adapter.count)
                 val result = grid.adapter.getView(0, null, grid)
@@ -271,6 +274,82 @@ class LibraryStorageIntegrationTest {
         } finally {
             instrumentation.runOnMainSync { host.finish(); thumbnails.close() }
             instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test fun folderAndPdfCellsShareSizesAndResetRecycledContentInBothLayoutsAndThemes() = sandbox { context ->
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val store = DocumentStore(context)
+        val parent = store.createFolder("A Öffnen")
+        val emptyFolder = store.createFolder("Z Empty")
+        val child = store.createFolder("Child", parent.id)
+        store.createFolder("Grandchild", child.id)
+        val documents = List(4) { store.importDocument(Uri.fromFile(sample(context))) }
+        store.moveDocuments(documents.subList(1, 3).map { it.id }.toSet(), parent.id)
+        store.moveDocuments(setOf(documents[3].id), child.id)
+        val host = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val preferences = host.getSharedPreferences("library_settings", 0)
+        val previous = preferences.all
+        val thumbnails = ThumbnailLoader(context)
+        try {
+            instrumentation.runOnMainSync {
+                for (dark in listOf(false, true)) for (listMode in listOf(true, false)) {
+                    preferences.edit().putBoolean("list", listMode).putInt("sort", 0).commit()
+                    var opened: PdfDocument? = null
+                    val view = LibraryView(host, store, thumbnails, dark, { opened = it }, {}, {}, {})
+                    host.setContentView(view)
+                    val grid = descendants(view).filterIsInstance<GridView>().single()
+                    assertEquals(3, grid.adapter.count)
+                    assertEquals(parent, grid.adapter.getItem(0))
+                    assertEquals(emptyFolder, grid.adapter.getItem(1))
+                    val pdf = grid.adapter.getView(2, null, grid) as LinearLayout
+                    val folder = grid.adapter.getView(0, null, grid) as LinearLayout
+                    val width = host.resources.displayMetrics.widthPixels / if (listMode) 1 else 2
+                    fun measure(cell: View) {
+                        cell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    }
+                    measure(pdf); measure(folder)
+                    assertEquals(pdf.measuredHeight, folder.measuredHeight)
+                    assertEquals(pdf.getChildAt(0).layoutParams.width, folder.getChildAt(0).layoutParams.width)
+                    assertEquals(pdf.getChildAt(0).layoutParams.height, folder.getChildAt(0).layoutParams.height)
+                    val counts = host.getString(R.string.folder_contents,
+                        host.resources.getQuantityString(R.plurals.folder_pdf_count, 2, 2),
+                        host.resources.getQuantityString(R.plurals.folder_subfolder_count, 1, 1))
+                    val details = folder.getChildAt(1) as LinearLayout
+                    assertEquals(parent.name, (details.getChildAt(0) as TextView).text.toString())
+                    assertEquals(counts, (details.getChildAt(1) as TextView).text.toString())
+                    assertEquals(host.getString(R.string.folder_open_description, parent.name, counts), folder.contentDescription)
+                    // PDF -> folder -> PDF recycling must restore image scaling, padding and actions.
+                    assertSame(pdf, grid.adapter.getView(0, pdf, grid))
+                    val image = (pdf.getChildAt(0) as ViewGroup).getChildAt(0) as ImageView
+                    assertEquals(ImageView.ScaleType.FIT_CENTER, image.scaleType)
+                    assertTrue(image.paddingLeft > 0); assertNotNull(image.drawable)
+                    val options = if (listMode) pdf.getChildAt(2) else (pdf.getChildAt(0) as ViewGroup).getChildAt(1)
+                    assertEquals(host.getString(R.string.folder_options), options.contentDescription)
+                    assertSame(pdf, grid.adapter.getView(2, pdf, grid))
+                    assertEquals(ImageView.ScaleType.CENTER_CROP, image.scaleType)
+                    assertEquals(0, image.paddingLeft)
+                    assertEquals(UiText.t(host, "Dokumentoptionen"), options.contentDescription)
+                    pdf.performClick(); assertEquals(documents[0].id, opened?.id)
+                    val empty = grid.adapter.getView(1, pdf, grid) as LinearLayout
+                    val zeroCounts = host.getString(R.string.folder_contents,
+                        host.resources.getQuantityString(R.plurals.folder_pdf_count, 0, 0),
+                        host.resources.getQuantityString(R.plurals.folder_subfolder_count, 0, 0))
+                    assertEquals(zeroCounts, ((empty.getChildAt(1) as ViewGroup).getChildAt(1) as TextView).text.toString())
+                    folder.performClick()
+                    assertEquals(3, grid.adapter.count) // One direct subfolder and two PDFs, no grandchildren.
+                    assertEquals(child, grid.adapter.getItem(0))
+                }
+            }
+        } finally {
+            instrumentation.runOnMainSync { host.finish(); thumbnails.close() }
+            instrumentation.waitForIdleSync()
+            preferences.edit().apply {
+                if (previous["list"] == null) remove("list") else putBoolean("list", previous["list"] as Boolean)
+                if (previous["sort"] == null) remove("sort") else putInt("sort", previous["sort"] as Int)
+            }.commit()
         }
     }
 }

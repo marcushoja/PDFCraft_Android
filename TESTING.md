@@ -1,5 +1,23 @@
 # Prüfstand · 13. Oktober 2026
 
+## Ordner als gleich große Bibliothekseinträge · 6. November 2026
+
+Ordner stehen vor PDFs im selben virtualisierten GridView, nicht mehr in einer
+separaten kleinen Liste. Beide verwenden identische Zeilen-/Kachelgeometrie,
+Vorschaubereiche, Typografie und Optionspositionen. Ordner zeigen ein großes Symbol
+und die Anzahl direkt enthaltener PDFs und Unterordner, einschließlich leerer Ordner.
+Die Anzahl ist in allen vier Sprachen pluralisiert; Unterordnerinhalte zählen nicht
+rekursiv. Pfadnavigation, PDF-Mehrfachauswahl und globale Suche bleiben erhalten.
+
+Der Android-UI-Test prüft beide Layouts und Themes, identische Maße, direkte statt
+rekursive Anzahlen, leere Ordner, Ordner zuerst, Navigation und PDF-/Ordner-Recycling
+mit zurückgesetzter Bildskalierung, Innenabständen und Aktionen. Bestehende Layout-
+und Bulk-Move-Tests berücksichtigen die gemeinsamen Adaptereinträge.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 63 JVM-Tests und Android Lint.
+Android-Tests nur kompiliert: ADB antwortet weiterhin nicht auf die Geräteabfrage.
+Die visuelle Geräteprüfung bleibt offen.
+
 ## Virtuelle Ordner und manuelles Vollbackup · 6. November 2026
 
 Die Bibliothek startet in der Ordnerebene. Unterordner, Pfadnavigation, Umbenennen,

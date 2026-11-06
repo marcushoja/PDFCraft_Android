@@ -33,11 +33,12 @@ class LibraryView(
     private var folderId = initialFolderId?.takeIf { id -> folders.any { it.id == id } }
     private val selected = mutableSetOf<String>()
     private val folderDialogs = FolderDialogs(context, store) { selected.clear(); refresh() }
-    private val folderRows = LinearLayout(context).apply { orientation = VERTICAL }
     private val breadcrumbs = LinearLayout(context)
     private val selectionBar = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-    private val folderScroll = ScrollView(context).apply { addView(folderRows) }
     private var shown = all
+    private var shownFolders = emptyList<LibraryFolder>()
+    private var documentCounts = emptyMap<String?, Int>()
+    private var folderCounts = emptyMap<String?, Int>()
     private var tab = 1
     private var query = ""
     private lateinit var searchInput: EditText
@@ -49,11 +50,14 @@ class LibraryView(
     private val tabButtons = mutableListOf<TextView>()
     private val empty = label("Öffne deine erste PDF.\nDeine Lesestelle bleibt gespeichert.", 17f).apply { gravity = Gravity.CENTER; setPadding(dp(24), dp(24), dp(24), dp(24)); setTextColor(muted) }
     private val adapter = object : BaseAdapter() {
-        override fun getCount() = shown.size
-        override fun getItem(position: Int) = shown[position]
-        override fun getItemId(position: Int) = shown[position].id.hashCode().toLong()
+        override fun getCount() = shownFolders.size + shown.size
+        override fun getItem(position: Int): Any = shownFolders.getOrNull(position) ?: shown[position - shownFolders.size]
+        override fun getItemId(position: Int) = when (val item = getItem(position)) {
+            is LibraryFolder -> item.id.hashCode().toLong()
+            else -> (item as PdfDocument).id.hashCode().toLong()
+        }
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val doc = shown[position]
+            val item = getItem(position)
             val cell = (convertView as? LinearLayout)?.takeIf { it.tag == listMode } ?: LinearLayout(context).apply {
                 tag = listMode
                 orientation = if (listMode) HORIZONTAL else VERTICAL
@@ -94,18 +98,45 @@ class LibraryView(
                 }
             }
             val frame = cell.getChildAt(0) as FrameLayout
-            thumbnails.load(store.file(doc), 0, dp(if (listMode) 48 else 150), frame.getChildAt(0) as ImageView)
-            (if (listMode) cell.getChildAt(2) else frame.getChildAt(1)).setOnClickListener {
+            val image = frame.getChildAt(0) as ImageView
+            val options = if (listMode) cell.getChildAt(2) else frame.getChildAt(1)
+            val details = cell.getChildAt(1) as LinearLayout
+            cell.isClickable = true; cell.isFocusable = true
+            if (item is LibraryFolder) {
+                // Folder/PDF cells share geometry and can be recycled into each other.
+                thumbnails.cancel(image)
+                image.scaleType = ImageView.ScaleType.FIT_CENTER
+                val padding = dp(if (listMode) 4 else 32)
+                image.setPadding(padding, padding, padding, padding)
+                image.background = rounded(tint, 10)
+                image.setImageDrawable(MaterialSymbols.drawable(context, "folder", accent))
+                val contents = folderContents(item)
+                (details.getChildAt(0) as TextView).text = item.name
+                (details.getChildAt(1) as TextView).text = contents
+                (details.getChildAt(2) as TextView).text = ""
+                cell.contentDescription = context.getString(R.string.folder_open_description, item.name, contents)
+                cell.isSelected = false; cell.background = null
+                options.contentDescription = context.getString(R.string.folder_options)
+                options.setOnClickListener { folderDialogs.options(item) }
+                cell.setOnClickListener { folderId = item.id; selected.clear(); refresh() }
+                cell.setOnLongClickListener { folderDialogs.options(item); true }
+                return cell
+            }
+            val doc = item as PdfDocument
+            image.scaleType = ImageView.ScaleType.CENTER_CROP
+            image.setPadding(0, 0, 0, 0)
+            image.background = rounded(surface, 10)
+            thumbnails.load(store.file(doc), 0, dp(if (listMode) 48 else 150), image)
+            options.contentDescription = UiText.t(context,"Dokumentoptionen")
+            options.setOnClickListener {
                 if (selected.isNotEmpty()) toggleSelection(doc.id) else onOptions(doc)
             }
-            val details = cell.getChildAt(1) as LinearLayout
             (details.getChildAt(0) as TextView).text = doc.name.replace(Regex("\\.pdf$",RegexOption.IGNORE_CASE),"")
             val reading = UiText.t(context, if (doc.pageCount > 0) "Seite ${doc.page + 1} / ${doc.pageCount}" else "Noch nicht gelesen")
             (details.getChildAt(1) as TextView).text = if (query.isNotBlank() || tab != 1)
                 reading + " · " + (LibraryFolders.path(folders, doc.folderId).joinToString(" › ") { it.name }.ifEmpty { UiText.t(context,"Bibliothek") }) else reading
             (details.getChildAt(2) as TextView).text = java.text.DateFormat.getDateInstance().format(java.util.Date(doc.addedAt))
             cell.contentDescription = UiText.t(context,"${doc.name}, weiterlesen")
-            cell.isClickable = true; cell.isFocusable = true
             cell.isSelected = doc.id in selected
             cell.background = if (cell.isSelected) rounded(tint, 12) else null
             cell.setOnClickListener { if (selected.isNotEmpty()) toggleSelection(doc.id) else onOpen(doc) }
@@ -157,7 +188,6 @@ class LibraryView(
         }
         addView(tabs)
         addView(HorizontalScrollView(context).apply { addView(breadcrumbs); isHorizontalScrollBarEnabled = false })
-        addView(folderScroll)
         addView(selectionBar)
         val viewOptions = LinearLayout(context).apply { gravity = Gravity.END; setPadding(dp(12),0,dp(12),0) }
         viewOptions.addView(iconAction(if (listMode) "pages" else "library_list", if (listMode) R.string.library_grid else R.string.library_list) {
@@ -233,6 +263,8 @@ class LibraryView(
 
     private fun refresh() {
         all = store.list(); folders = store.folders()
+        documentCounts = all.groupingBy { it.folderId }.eachCount()
+        folderCounts = folders.groupingBy { it.parentId }.eachCount()
         if (folderId != null && folders.none { it.id == folderId }) folderId = null
         onFolderChanged(folderId)
         selected.retainAll(all.map { it.id }.toSet())
@@ -245,27 +277,16 @@ class LibraryView(
                 else -> docs.sortedBy { it.name.lowercase() }
             } }
         empty.text = UiText.t(context, if (all.isEmpty()) "Öffne deine erste PDF.\nDeine Lesestelle bleibt gespeichert." else if (tab == 2 && query.isEmpty()) "Noch keine Lesezeichen.\nTippe beim Lesen auf das Lesezeichen-Symbol." else "Keine passenden Dokumente.")
-        empty.visibility = if (shown.isEmpty()) VISIBLE else GONE
-        breadcrumbs.removeAllViews(); folderRows.removeAllViews(); selectionBar.removeAllViews()
+        breadcrumbs.removeAllViews(); selectionBar.removeAllViews()
         val browsing = tab == 1 && query.isBlank()
+        shownFolders = if (browsing) folders.filter { it.parentId == folderId }.let { children ->
+            if (sortOrder == 1) children.sortedByDescending { it.name.lowercase() } else children.sortedBy { it.name.lowercase() }
+        } else emptyList()
+        empty.visibility = if (shown.isEmpty() && shownFolders.isEmpty()) VISIBLE else GONE
         breadcrumbs.visibility = if (browsing) VISIBLE else GONE
         breadcrumbs.addView(action(UiText.t(context,"Bibliothek"), UiText.t(context,"Bibliothek")) { folderId = null; selected.clear(); refresh() })
         LibraryFolders.path(folders, folderId).forEach { folder ->
             breadcrumbs.addView(action("› ${folder.name}", folder.name, raw = true) { folderId = folder.id; selected.clear(); refresh() })
-        }
-        val children = folders.filter { it.parentId == folderId }.sortedBy { it.name.lowercase() }
-        folderScroll.visibility = if (browsing && children.isNotEmpty()) VISIBLE else GONE
-        folderScroll.layoutParams = LayoutParams(-1, dp(minOf(children.size, 3) * 52))
-        if (browsing) children.forEach { folder ->
-            folderRows.addView(LinearLayout(context).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                addView(action("▸ ${folder.name}", folder.name, raw = true) { folderId = folder.id; selected.clear(); refresh() }.apply {
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-                    setOnLongClickListener { folderDialogs.options(folder); true }
-                }, LayoutParams(0, dp(52), 1f))
-                addView(action("⋮", context.getString(R.string.folder_options)) { folderDialogs.options(folder) })
-            })
         }
         selectionBar.visibility = if (selected.isEmpty()) GONE else VISIBLE
         if (selected.isNotEmpty()) {
@@ -280,6 +301,13 @@ class LibraryView(
         }
         tabButtons.forEachIndexed { index, view -> view.background = rounded(if (tab == index) tint else Color.TRANSPARENT,14); view.setTextColor(if (tab == index) accent else muted) }
         adapter.notifyDataSetChanged()
+    }
+    private fun folderContents(folder: LibraryFolder): String {
+        val documents = documentCounts[folder.id] ?: 0
+        val children = folderCounts[folder.id] ?: 0
+        return context.getString(R.string.folder_contents,
+            resources.getQuantityString(R.plurals.folder_pdf_count, documents, documents),
+            resources.getQuantityString(R.plurals.folder_subfolder_count, children, children))
     }
     private fun toggleSelection(id: String) { if (!selected.add(id)) selected.remove(id); refresh() }
 

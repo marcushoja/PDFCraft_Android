@@ -64,7 +64,7 @@ class LibraryLayoutIntegrationTest {
                     button(host.getString(R.string.library_sort)).performClick()
                     val choices=WindowInspector.getGlobalWindowViews().flatMap { descendants(it) }.filterIsInstance<ListView>().single()
                     choices.performItemClick(null,order,choices.adapter.getItemId(order))
-                    val actual=(0 until grid().adapter.count).map { grid().adapter.getItem(it) as PdfDocument }
+                    val actual=(0 until grid().adapter.count).map { grid().adapter.getItem(it) }.filterIsInstance<PdfDocument>()
                     val expected=when(order) {
                         1 -> actual.sortedByDescending { it.name.lowercase() }
                         2 -> actual.sortedByDescending { it.addedAt }
@@ -75,8 +75,9 @@ class LibraryLayoutIntegrationTest {
                     assertTrue(actual.containsAll(documents))
                     assertEquals(order,prefs.getInt("sort",-1))
                 }
-                val doc=grid().adapter.getItem(0) as PdfDocument
-                val cell=grid().adapter.getView(0,null,grid()) as LinearLayout
+                val pdfPosition=(0 until grid().adapter.count).first { grid().adapter.getItem(it) is PdfDocument }
+                val doc=grid().adapter.getItem(pdfPosition) as PdfDocument
+                val cell=grid().adapter.getView(pdfPosition,null,grid()) as LinearLayout
                 assertEquals(LinearLayout.HORIZONTAL,cell.orientation)
                 cell.measure(View.MeasureSpec.makeMeasureSpec(view.measuredWidth,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED))
                 assertTrue(cell.measuredHeight<= (80*host.resources.displayMetrics.density).toInt())
@@ -90,7 +91,7 @@ class LibraryLayoutIntegrationTest {
                 button(host.getString(R.string.library_grid)).performClick()
                 layout()
                 assertTrue(grid().numColumns>=2)
-                assertEquals(LinearLayout.VERTICAL,(grid().adapter.getView(0,cell,grid()) as LinearLayout).orientation)
+                assertEquals(LinearLayout.VERTICAL,(grid().adapter.getView(pdfPosition,cell,grid()) as LinearLayout).orientation)
                 assertTrue(descendants(view).filterIsInstance<TextView>().any { it.text.toString()=="Buy me a coffee" && it.isClickable })
             }
         } finally {

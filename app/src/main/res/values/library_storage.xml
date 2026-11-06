@@ -12,6 +12,16 @@
     <string name="folder_choose">Move here</string>
     <string name="folder_all_pdfs">All PDFs</string>
     <string name="folder_options">Folder options</string>
+    <string name="folder_contents">%1$s · %2$s</string>
+    <string name="folder_open_description">Open folder %1$s, %2$s</string>
+    <plurals name="folder_pdf_count">
+        <item quantity="one">%d PDF</item>
+        <item quantity="other">%d PDFs</item>
+    </plurals>
+    <plurals name="folder_subfolder_count">
+        <item quantity="one">%d subfolder</item>
+        <item quantity="other">%d subfolders</item>
+    </plurals>
     <string name="folder_selected">%1$d selected</string>
     <string name="folder_select_all">All</string>
     <string name="backup_title">Backup &amp; restore</string>
