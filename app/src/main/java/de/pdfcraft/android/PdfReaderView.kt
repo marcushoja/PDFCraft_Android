@@ -103,6 +103,7 @@ class PdfReaderView(context: Context) : View(context) {
     fun previousPage() = navigatePages(false)
     /** Forward means next in document reading order; RTL changes physical motion, not page IDs. */
     fun navigatePages(forward: Boolean, animated: Boolean = true) {
+        stopAnimations(completeTurn = true)
         val target = groupTarget(forward) ?: return
         if (animated) turnToPage(target) else goToPage(target)
     }
@@ -230,6 +231,7 @@ class PdfReaderView(context: Context) : View(context) {
     }
 
     private var curlAnimator: ValueAnimator? = null
+    private var curlCompleting = false
     private val curlCorner = PointF()
     private val curlFinger = PointF()
     private var sideCurl = false
@@ -264,7 +266,6 @@ class PdfReaderView(context: Context) : View(context) {
     private val gestures = GestureDetector(context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
-                stopAnimations()
                 settling = false
                 gestureStartPage = currentPage
                 return true
@@ -483,7 +484,7 @@ class PdfReaderView(context: Context) : View(context) {
             return
         }
         if (pageCount == 0) return
-        stopAnimations()
+        stopAnimations(completeTurn = true)
         gestureStartPage = currentPage
         animateToPage(page)
     }
@@ -1264,6 +1265,9 @@ class PdfReaderView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (handleSelectionTouch(event)) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            // A released, committed turn belongs to the next page even if its visual
+            // animation is still running. Resolve it before measuring the new gesture.
+            stopAnimations(completeTurn = true)
             selectionGesture = false
             scaledThisGesture = false
             downX = event.x
@@ -1401,6 +1405,7 @@ class PdfReaderView(context: Context) : View(context) {
         val ey = curlCorner.y
         val animator = ValueAnimator.ofFloat(0f, 1f)
         curlAnimator = animator
+        curlCompleting = complete
         animator.duration = if (complete) 320L else 220L
         animator.interpolator = DecelerateInterpolator(1.5f)
         animator.addUpdateListener {
@@ -1416,6 +1421,7 @@ class PdfReaderView(context: Context) : View(context) {
             override fun onAnimationEnd(animation: Animator) {
                 if (canceled) return
                 curlAnimator = null
+                curlCompleting = false
                 turning = false
                 if (complete) setPosition(turnTo, 0f) else invalidate()
             }
@@ -1423,11 +1429,14 @@ class PdfReaderView(context: Context) : View(context) {
         animator.start()
     }
 
-    private fun stopAnimations() {
+    private fun stopAnimations(completeTurn: Boolean = false) {
+        val destination = if (completeTurn && turning && curlAnimator != null && curlCompleting) turnTo else null
         scroller.abortAnimation()
         curlAnimator?.cancel()
         curlAnimator = null
+        curlCompleting = false
         turning = false
         settling = false
+        if (destination != null) setPosition(destination, 0f)
     }
 }

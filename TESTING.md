@@ -1,5 +1,22 @@
 # Prüfstand · 13. Oktober 2026
 
+## Schnelles Weiterblättern · 16. November 2026
+
+Eine neue Berührung schließt einen bereits bestätigten Seitenwechsel sofort ab,
+auch wenn dessen Curl-Animation noch läuft. Die nächste Geste beginnt damit auf
+der Zielseite. Dasselbe gilt für wiederholte Vor-/Zurück-Navigation; deren Ziel
+wird erst nach Abschluss des vorherigen Wechsels berechnet. Gehaltene Faltungen
+und zurücklaufende, abgebrochene Gesten übernehmen ihre Zielseite nicht.
+
+`PdfCurlIntegrationTest.rapidTurnsCommitReleasedPagesButNotCanceledOrHeldFolds`
+prüft schnelle Folgewischgesten, Richtungswechsel, unterbrochene Rückläufe und
+gehaltene Faltungen sowie wiederholte Navigation bis zur Dokumentgrenze, jeweils
+für LTR und RTL. Die Animationen werden dabei ohne Wartezeit unterbrochen.
+
+Lokal erfolgreich: Debug-APK, Test-APK, alle 63 JVM-Tests und Android Lint.
+Der neue Android-Test wurde nur kompiliert, nicht ausgeführt: Die ADB-Geräteabfrage
+antwortete innerhalb von 15 Sekunden nicht. Die Geräteprüfung bleibt offen.
+
 ## Ordner als gleich große Bibliothekseinträge · 6. November 2026
 
 Ordner stehen vor PDFs im selben virtualisierten GridView, nicht mehr in einer

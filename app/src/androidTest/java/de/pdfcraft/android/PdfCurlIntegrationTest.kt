@@ -18,6 +18,100 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PdfCurlIntegrationTest {
+    @Test fun rapidTurnsCommitReleasedPagesButNotCanceledOrHeldFolds() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val file = File.createTempFile("rapid-curl-test-", ".pdf", context.cacheDir)
+        val pdf = PdfDocument()
+        try {
+            repeat(5) { index ->
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(480, 720, index + 1).create())
+                page.canvas.drawColor(Color.WHITE)
+                pdf.finishPage(page)
+            }
+            file.outputStream().use { pdf.writeTo(it) }
+        } finally { pdf.close() }
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
+        val rendered = CountDownLatch(1)
+        lateinit var reader: PdfReaderView
+        val animatorField = PdfReaderView::class.java.getDeclaredField("curlAnimator").apply { isAccessible = true }
+        instrumentation.runOnMainSync {
+            reader = PdfReaderView(activity)
+            activity.setContentView(reader)
+            reader.setReadingMode(ReadingMode.SINGLE)
+            reader.setFitPage(true)
+            reader.onFirstPageRendered = { rendered.countDown() }
+            reader.open(file)
+        }
+        try {
+            assertTrue(rendered.await(15, TimeUnit.SECONDS))
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync {
+                var start = SystemClock.uptimeMillis()
+                fun event(action: Int, x: Float, dt: Long = 0) {
+                    val motion = MotionEvent.obtain(start, start + dt, action,
+                        reader.width * x, reader.height * .5f, 0)
+                    reader.onTouchEvent(motion)
+                    motion.recycle()
+                }
+                fun begin(forward: Boolean) {
+                    start += 1000
+                    val leftward = forward != reader.isRightToLeft
+                    event(MotionEvent.ACTION_DOWN, if (leftward) .96f else .04f)
+                    event(MotionEvent.ACTION_MOVE, if (leftward) .2f else .8f, 40)
+                }
+                fun release(forward: Boolean, cancel: Boolean = false) {
+                    event(if (cancel) MotionEvent.ACTION_CANCEL else MotionEvent.ACTION_UP,
+                        if (forward != reader.isRightToLeft) .2f else .8f, 80)
+                    assertNotNull("Release must start a settling animation", animatorField.get(reader))
+                }
+                fun finish() {
+                    (animatorField.get(reader) as android.animation.ValueAnimator).end()
+                }
+                for (rtl in listOf(false, true)) {
+                    reader.setRightToLeft(rtl)
+                    reader.goToPage(0)
+                    begin(true)
+                    release(true)
+                    assertEquals("Commit is deferred while the animation runs", 0, reader.currentPage)
+                    begin(true)
+                    assertEquals("Next swipe must start on the committed target", 1, reader.currentPage)
+                    release(true)
+                    begin(false)
+                    assertEquals("Direction reversal must also finish the prior turn", 2, reader.currentPage)
+                    release(false)
+                    finish()
+                    assertEquals("Reverse swipe must return one page", 1, reader.currentPage)
+
+                    begin(true)
+                    release(true, cancel = true)
+                    begin(true)
+                    assertEquals("Interrupted rollback must not advance", 1, reader.currentPage)
+                    // A new DOWN interrupts a held fold without committing it.
+                    begin(true)
+                    assertEquals("Held fold must not advance", 1, reader.currentPage)
+                    release(true, cancel = true)
+                    finish()
+                    assertEquals(1, reader.currentPage)
+
+                    reader.goToPage(0)
+                    repeat(4) { reader.nextPage() }
+                    assertEquals("Repeated navigation must not restart the same turn", 3, reader.currentPage)
+                    reader.nextPage()
+                    assertEquals("Navigation at the end must retain the last committed page", 4, reader.currentPage)
+                    reader.previousPage()
+                    reader.previousPage()
+                    finish()
+                    assertEquals("Repeated backward navigation must advance each request", 2, reader.currentPage)
+                }
+            }
+        } finally {
+            instrumentation.runOnMainSync { reader.close(); activity.finish() }
+            file.delete()
+        }
+    }
+
     @Test fun backsideTextureRetainsPageDetailsWithMutedColorsAndCachesPerTheme() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
